@@ -62,8 +62,8 @@ pub async fn rename(
     Json(req): Json<NameReq>,
 ) -> ApiResult<Json<Workspace>> {
     let name = validate_name(&req.name)?;
-    let role = utopia_store::workspaces::require_role(&state.pool, user.id, id, Role::Viewer)
-        .await?;
+    let role =
+        utopia_store::workspaces::require_role(&state.pool, user.id, id, Role::Viewer).await?;
     if !user.is_admin && role < Role::Admin {
         return Err(AppError::Forbidden.into());
     }

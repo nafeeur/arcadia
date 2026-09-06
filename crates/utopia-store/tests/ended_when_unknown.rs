@@ -219,15 +219,25 @@ async fn an_already_ended_fact_is_not_treated_as_an_open_claim() -> anyhow::Resu
             0.9,
         )
         .await?;
-        assert_eq!(report.corrected.len(), 0, "the old row already ended, it shouldn't be closed again");
-        assert_eq!(report.conflicts, 0, "nor is it a conflict -- the two spans never overlapped");
+        assert_eq!(
+            report.corrected.len(),
+            0,
+            "the old row already ended, it shouldn't be closed again"
+        );
+        assert_eq!(
+            report.conflicts, 0,
+            "nor is it a conflict -- the two spans never overlapped"
+        );
         // Old row untouched
         let still: Option<chrono::DateTime<chrono::Utc>> =
             sqlx::query_scalar("SELECT valid_to FROM facts WHERE id = $1")
                 .bind(old)
                 .fetch_one(&pool)
                 .await?;
-        assert!(still.is_none(), "the engine shouldn't invent an end date for it out of thin air");
+        assert!(
+            still.is_none(),
+            "the engine shouldn't invent an end date for it out of thin air"
+        );
         Ok::<_, anyhow::Error>(())
     }
     .await;

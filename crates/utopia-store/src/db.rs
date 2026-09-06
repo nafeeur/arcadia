@@ -29,7 +29,10 @@ pub async fn connect(database_url: &str, max_connections: Option<u32>) -> anyhow
         .acquire_timeout(Duration::from_secs(10))
         .connect(database_url)
         .await?;
-    tracing::info!(max_connections = max, "database connection pool established");
+    tracing::info!(
+        max_connections = max,
+        "database connection pool established"
+    );
     Ok(pool)
 }
 
