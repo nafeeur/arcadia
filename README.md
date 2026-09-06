@@ -27,6 +27,37 @@ It ships as **one Rust binary and one Postgres database.** Full-text search is e
 
 > Arcadia is built on top of [DeepLethe's Utopia](https://github.com/deeplethe/utopia), using its graph, ingestion, ontology, SQL-mapping, chat and account foundation, and adding the review/evidence/SSO layer described below along with a new visual identity. See [Attribution](#attribution).
 
+<table>
+<tr>
+<td width="50%">
+
+**Dashboard** — what's waiting for review, and what you've asked recently
+<img src="assets/screenshots/overview.jpg" alt="Arcadia overview dashboard">
+
+</td>
+<td width="50%">
+
+**Chat with citations** — every answer links back to the passage it came from
+<img src="assets/screenshots/chat.jpg" alt="Arcadia chat with inline citations">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Knowledge graph** — entities, facts and their evidence, browsable as of any date
+<img src="assets/screenshots/graph.jpg" alt="Arcadia knowledge graph view">
+
+</td>
+<td width="50%">
+
+**Change review** — side-by-side diff and dependency impact before anything lands
+<img src="assets/screenshots/change-review.jpg" alt="Arcadia change review diff view">
+
+</td>
+</tr>
+</table>
+
 ## Features
 
 ### Added in Arcadia

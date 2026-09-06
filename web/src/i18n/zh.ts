@@ -11,7 +11,7 @@ import type { Strings } from "./en";
 
 export const zh: Strings = {
   arcadia: {
-    upstreamSource: "Utopia 上游源码",
+    upstreamSource: "Arcadia GitHub 源码",
     savedRuns: "已保存的比较（最近 20 次）",
     proposalRun: "变更提案证据",
     guideTitle: "Arcadia：证据与变化",
@@ -388,7 +388,7 @@ export const zh: Strings = {
     agreePrefix: "继续即表示你同意",
     agreeAnd: "，并已知悉",
     agreeSuffix: "。",
-    githubUrl: "https://github.com/deeplethe/utopia",
+    githubUrl: "https://github.com/nafeeur/arcadia",
   },
   legal: {
     privacyTitle: "隐私政策",

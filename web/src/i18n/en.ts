@@ -4,7 +4,7 @@
 // 加新文案时先加在这里，再补其余语言包——顺序反了会得到一个类型错误，那正是本意。
 export const en = {
   arcadia: {
-    upstreamSource: "Upstream Utopia source",
+    upstreamSource: "Arcadia source on GitHub",
     savedRuns: "Saved comparisons (latest 20)",
     proposalRun: "Proposed document evidence",
     guideTitle: "Arcadia: evidence and change",
@@ -421,7 +421,7 @@ export const en = {
     agreePrefix: "By continuing, you agree to the ",
     agreeAnd: " and acknowledge the ",
     agreeSuffix: ".",
-    githubUrl: "https://github.com/deeplethe/utopia",
+    githubUrl: "https://github.com/nafeeur/arcadia",
   },
   legal: {
     privacyTitle: "Privacy policy",
