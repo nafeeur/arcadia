@@ -1,32 +1,40 @@
-//! 世界轴谓词（0022）：`holds_at(T)`——**T 时刻哪些事实成立**。
+//! World-axis predicates (0022): `holds_at(T)` — **which facts hold at moment T**.
 //!
-//! 写入侧早就分得清「仍在持续」与「结束了，不知哪天」，也从不替原文编一个起点。
-//! 读出侧却把两者都读回「随时成立」：`valid_from IS NULL` 被读成自古如此，
-//! `valid_to IS NULL` 不看旁边的精度就读成至今仍是。问一个证据出现之前的时刻，
-//! 或一个原文说已结束、只是没给日期的时刻，图都会理直气壮地回答——引的恰恰是
-//! 那条说它不该成立的行（#345、#352）。
+//! The write side has long distinguished "still ongoing" from "ended, date unknown", and never
+//! invents a start point for the original text. But the read side used to read both of those
+//! back as "holds at any time": `valid_from IS NULL` was read as "has always been true", and
+//! `valid_to IS NULL` was read as "still true today" without looking at the precision flag next
+//! to it. Ask about a moment before any evidence existed, or a moment the source text says had
+//! already ended (just without giving a date), and the graph would confidently answer anyway —
+//! citing the very row that says it shouldn't hold (#345, #352).
 //!
-//! **谓词只在这里拼**，理由与 `record_axis` 相同：散在每个读点的防御，漏一处就
-//! 无声无息。前端也不再自己算一遍——边和事实带着 `holds_from` / `holds_to`
-//! （按这里同一套表达式投影出来的「读出来的区间」），滑杆只按它们过滤。
+//! **The predicate is assembled in exactly one place**, for the same reason as `record_axis`:
+//! guards scattered across every read site go silently missing one at a time. The frontend no
+//! longer computes this itself either — edges and facts carry `holds_from` / `holds_to`
+//! (the "read-out interval" projected using this same set of expressions), and the time slider
+//! filters purely against those.
 //!
-//! 未知的一端**读到证据为止**：`attested_at` 是这一行的各次观察里最早那份文档的
-//! 日期。没有起点 → 从它起成立；结束了不知哪天 → 到它为止。两端的不对称是故意
-//! 的：开放的结束端仍读作「直到有人说它结束」——结束会以记录的形式到来（后面的
-//! 文档、人的修正），把行关上；而缺失的起点没有这样的修正者，不会有谁来说
-//! 「2023 年它还没开始」。所以事实从有证据的那一刻起成立，之前的诚实答案是没有。
+//! The unknown end **reads up to the evidence**: `attested_at` is the date of the earliest
+//! document among this row's observations. No start point -> holds from that point on; ended
+//! but no date given -> holds up to that point. The asymmetry between the two ends is
+//! deliberate: an open end still reads as "holds until someone says it ended" — an ending
+//! arrives in the form of a record (a later document, a human correction) that closes the row;
+//! a missing start point has no such corrector, nobody is going to say "in 2023 it hadn't
+//! started yet". So a fact holds from the moment evidence for it exists, and before that the
+//! honest answer is "no".
 //!
-//! `at` 为 NULL 在世界轴上是**每一刻**（画布画的是历史，滑杆负责收窄），与记录轴
-//! 的「NULL 即现在」不同：没有人持有一个晚于此刻的信念，而没有时刻的图是全部
-//! 时间的图。
+//! `at` being NULL on the world axis means **every moment** (the canvas draws history; the
+//! slider narrows it), unlike the record axis's "NULL means now": nobody holds a belief dated
+//! later than the present moment, whereas a graph with no time filter is the graph of all time.
 
-/// `facts`：读出来的下界——原文给了起点用起点，否则从最早的证据起。
+/// `facts`: the read-out lower bound — use the source's start point if it gave one, otherwise
+/// the earliest evidence.
 pub fn facts_holds_from(alias: &str) -> String {
     format!("COALESCE({alias}.valid_from, {alias}.attested_at)")
 }
 
-/// `facts`：读出来的上界——原文给了终点用终点；说结束了但不知哪天，到最早说出它
-/// 的那份文档为止；否则开放（NULL）。
+/// `facts`: the read-out upper bound — use the source's end point if it gave one; said to have
+/// ended but no date given, use the earliest document that said so; otherwise open (NULL).
 pub fn facts_holds_to(alias: &str) -> String {
     format!(
         "CASE WHEN {alias}.valid_to IS NOT NULL THEN {alias}.valid_to \
@@ -34,7 +42,7 @@ pub fn facts_holds_to(alias: &str) -> String {
     )
 }
 
-/// `facts`：断言在 T 时刻成立。`$param` 为 NULL 即不过滤。
+/// `facts`: asserts holding at moment T. `$param` of NULL means no filtering.
 pub fn facts_hold_at(alias: &str, param: usize) -> String {
     format!(
         "(${param}::timestamptz IS NULL \
@@ -44,8 +52,9 @@ pub fn facts_hold_at(alias: &str, param: usize) -> String {
     )
 }
 
-/// 纯粹的区间包含，NULL 一端即开放。派生行与幽灵边（0017 §3，区间在 `detail` 里）
-/// 都用它——它们的两端不是原文说的，是引擎按前提算出来的。
+/// Plain interval containment, with a NULL end meaning open. Used by both derived rows and
+/// phantom edges (0017 §3, whose interval lives in `detail`) — for both, the two ends aren't
+/// stated by the source text, they're computed by the engine from its premises.
 pub fn interval_holds_at(from: &str, to: &str, param: usize) -> String {
     format!(
         "(${param}::timestamptz IS NULL \
@@ -53,9 +62,10 @@ pub fn interval_holds_at(from: &str, to: &str, param: usize) -> String {
     )
 }
 
-/// `derived_facts`：派生在 T 时刻成立。两端由求值器按前提**读出来的**区间求交写入
-/// （0022 第 4 条：没起点的前提从锚点起算，结束了不知哪天的到锚点为止），所以这里
-/// 是纯粹的包含——派生行自己不需要锚点。
+/// `derived_facts`: a derived fact holds at moment T. Both ends are written by the evaluator as
+/// the **read-out** interval intersection over its premises (0022 item 4: a premise with no
+/// start point is counted from the anchor, one that ended with no date is counted up to the
+/// anchor), so this is plain containment — a derived row needs no anchor of its own.
 pub fn derived_hold_at(alias: &str, param: usize) -> String {
     interval_holds_at(
         &format!("{alias}.valid_from"),

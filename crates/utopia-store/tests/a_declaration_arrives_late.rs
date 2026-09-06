@@ -1,13 +1,19 @@
-//! 声明来晚了：本体自己长出来的库里，接任不会闭合前任（#341）。
+//! Declaration arrives late: in a knowledge base whose ontology grew on its own, a
+//! successor doesn't close its predecessor (#341).
 //!
-//! 钉住三样：
-//! - **候选是算出来的，不是猜出来的**——同一端挂着两个以上开放值的持有者才算；
-//!   每人各管一个项目的那一端不报
-//! - **补上声明之后能对账**——按年表走：三条开放事实闭合成一条链，前任闭合在
-//!   **最早的**后任起点上，与摄入顺序无关；再跑一遍不动
-//! - **没声明就不动**——对账接口拒绝，引擎不替人推断
+//! Pins down three things:
+//! - **Candidates are computed, not guessed** — only a side with two or more open-
+//!   valued holders counts; the side where everyone leads exactly one project is not
+//!   reported
+//! - **Reconciliation works once the declaration is added** — walking the timeline:
+//!   three open facts close into one chain, each predecessor closes at the
+//!   **earliest** successor's start, independent of ingest order; rerunning is a
+//!   no-op
+//! - **Without a declaration, nothing moves** — the reconcile endpoint refuses; the
+//!   engine never infers on a human's behalf
 //!
-//! 没有 `UTOPIA_DATABASE_URL` 时跳过而不是失败。自建自拆。
+//! Skips rather than fails when `UTOPIA_DATABASE_URL` is unset. Builds and tears
+//! down its own data.
 
 use chrono::{DateTime, TimeZone, Utc};
 use sqlx::PgPool;
@@ -17,9 +23,9 @@ use uuid::Uuid;
 struct Fixture {
     org: Uuid,
     kb: Uuid,
-    /// 关系，一位公理都没声明
+    /// A relation with no axiom declared at all
     leads: Uuid,
-    /// 属性，同样没声明
+    /// An attribute, likewise undeclared
     salary: Uuid,
     aurora: Uuid,
     zhang: Uuid,
@@ -113,7 +119,7 @@ async fn seed(pool: &PgPool) -> anyhow::Result<Fixture> {
     })
 }
 
-/// 一条开放的关系事实，起点按天。
+/// An open relation fact, start date precision "day".
 async fn edge(
     pool: &PgPool,
     kb: Uuid,
@@ -138,7 +144,7 @@ async fn edge(
     Ok(id)
 }
 
-/// 一条开放的属性事实，值走 `object_value`。
+/// An open attribute fact, value carried in `object_value`.
 async fn attr(
     pool: &PgPool,
     kb: Uuid,
@@ -163,7 +169,7 @@ async fn attr(
     Ok(id)
 }
 
-/// 一条谓词上还活着的事实：(主语名, 起点, 终点)，按起点排。
+/// A still-live fact on a predicate: (subject name, start, end), ordered by start.
 async fn live(
     pool: &PgPool,
     kb: Uuid,
@@ -190,7 +196,7 @@ async fn a_succession_closes_once_someone_declares_it() -> anyhow::Result<()> {
     let f = seed(&pool).await?;
 
     let run = async {
-        // 摄入顺序故意打乱：李四先到，周七次之，张三最后——年表与摄入顺序不同
+        // Ingest order is deliberately scrambled: Li Si first, Zhou Qi second, Zhang San last -- the timeline differs from ingest order
         edge(&pool, f.kb, f.li, f.leads, f.aurora, day(2024, 7, 5)).await?;
         edge(&pool, f.kb, f.zhou, f.leads, f.aurora, day(2025, 9, 1)).await?;
         edge(&pool, f.kb, f.zhang, f.leads, f.aurora, day(2023, 2, 1)).await?;
@@ -213,10 +219,10 @@ async fn a_succession_closes_once_someone_declares_it() -> anyhow::Result<()> {
         )
         .await?;
 
-        // —— 候选 ——
+        // -- candidates --
         let cands = temporal::uniqueness_candidates(&pool, f.kb).await?;
         let on_leads: Vec<_> = cands.iter().filter(|c| c.predicate_id == f.leads).collect();
-        assert_eq!(on_leads.len(), 1, "每人各管一个项目：主语侧不该报");
+        assert_eq!(on_leads.len(), 1, "everyone leads exactly one project: the subject side should not be reported");
         let leads = on_leads[0];
         assert_eq!(leads.side, "object");
         assert!(!leads.declared);
@@ -227,24 +233,24 @@ async fn a_succession_closes_once_someone_declares_it() -> anyhow::Result<()> {
         assert_eq!(
             ex.values.iter().map(|v| v.name.as_str()).collect::<Vec<_>>(),
             ["Zhang San", "Li Si", "Zhou Qi"],
-            "例子按年表排，不按摄入顺序"
+            "examples are ordered by timeline, not by ingest order"
         );
         let salary = cands
             .iter()
             .find(|c| c.predicate_id == f.salary)
-            .expect("两份开放的薪资是主语侧的候选");
+            .expect("two open salaries are a subject-side candidate");
         assert_eq!(salary.side, "subject");
         assert_eq!((salary.holders, salary.open_facts, salary.would_close), (1, 2, 1));
-        assert_eq!(salary.examples[0].values[0].name, "28000 CNY", "字面值带单位");
+        assert_eq!(salary.examples[0].values[0].name, "28000 CNY", "literal value carries its unit");
 
-        // —— 没声明就不动 ——
+        // -- without a declaration, nothing moves --
         assert!(
             temporal::reconcile_predicate(&pool, f.kb, f.leads).await.is_err(),
-            "没有唯一性声明的谓词不能对账：引擎不替人推断"
+            "a predicate without a uniqueness declaration cannot be reconciled: the engine never infers on a human's behalf"
         );
         assert_eq!(live(&pool, f.kb, f.leads).await?.len(), 3);
 
-        // —— 声明宾语侧唯一，对账 ——
+        // -- declare object-side uniqueness, reconcile --
         sqlx::query("UPDATE relation_types SET inverse_functional = TRUE WHERE id = $1")
             .bind(f.leads)
             .execute(&pool)
@@ -258,9 +264,9 @@ async fn a_succession_closes_once_someone_declares_it() -> anyhow::Result<()> {
                 ("Li Si".to_string(), Some(day(2024, 7, 5)), Some(day(2025, 9, 1))),
                 ("Zhou Qi".to_string(), Some(day(2025, 9, 1)), None),
             ],
-            "前任闭合在最早的后任起点上：张三止于李四，李四止于周七"
+            "each predecessor closes at the earliest successor's start: Zhang San ends at Li Si, Li Si ends at Zhou Qi"
         );
-        // 被改写的原行还在，记录轴倒回去看得见
+        // The rewritten original row is still there; visible by winding the record axis back
         let invalidated: i64 = sqlx::query_scalar(
             "SELECT count(*) FROM facts WHERE kb_id = $1 AND predicate_id = $2 AND invalidated_at IS NOT NULL",
         )
@@ -270,7 +276,7 @@ async fn a_succession_closes_once_someone_declares_it() -> anyhow::Result<()> {
         .await?;
         assert_eq!(invalidated, 2);
 
-        // 再跑一遍不动；候选里也不再有它
+        // Rerunning is a no-op; it's also gone from the candidates
         let again = temporal::reconcile_predicate(&pool, f.kb, f.leads).await?;
         assert!(again.corrected.is_empty() && again.conflicts == 0);
         assert!(temporal::uniqueness_candidates(&pool, f.kb)
@@ -278,7 +284,7 @@ async fn a_succession_closes_once_someone_declares_it() -> anyhow::Result<()> {
             .iter()
             .all(|c| c.predicate_id != f.leads));
 
-        // —— 属性走主语侧 ——
+        // -- attribute goes through the subject side --
         sqlx::query("UPDATE relation_types SET functional = TRUE WHERE id = $1")
             .bind(f.salary)
             .execute(&pool)
@@ -294,12 +300,12 @@ async fn a_succession_closes_once_someone_declares_it() -> anyhow::Result<()> {
         .bind(f.salary)
         .fetch_one(&pool)
         .await?;
-        assert_eq!(closed, Some(day(2024, 2, 20)), "旧薪资止于新薪资的起点");
+        assert_eq!(closed, Some(day(2024, 2, 20)), "the old salary ends at the new salary's start");
         Ok::<_, anyhow::Error>(())
     }
     .await;
 
-    // 先删库再删 org：pending_facts.proposed_by 之类不级联到 org
+    // Delete the KB before the org: things like pending_facts.proposed_by don't cascade to org
     sqlx::query("DELETE FROM knowledge_bases WHERE id = $1")
         .bind(f.kb)
         .execute(&pool)

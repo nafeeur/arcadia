@@ -1,5 +1,6 @@
-/* 网页标题系统：`{域} | {页面}`，品牌在前（产品决策；代价是多标签截断后同前缀）。
-   域：Utopia（主应用）/ Utopia Charter（文档）/ Utopia Persona（账户）。 */
+/* Page title system: `{domain} | {page}`, brand first (product decision; the
+   cost is that truncated tabs share the same prefix).
+   Domains: Arcadia (main app) / Arcadia Charter (docs) / Arcadia Persona (account). */
 import { useEffect } from "react";
 
 export function usePageTitle(...parts: (string | null | undefined)[]) {

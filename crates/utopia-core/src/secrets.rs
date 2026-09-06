@@ -1,20 +1,26 @@
-//! 凭据静态加密（封印）。
+//! Encryption at rest for credentials ("sealing").
 //!
-//! 库里存的 LLM API key、问数连接串、来源配置里的 token、api 来源的推送密钥，从前都是
-//! 明文——能读到库（或一份备份）的人就拿到了全部外部凭据。现在这些值在落库前用
-//! AES-256-GCM 封印，密钥不在库里：环境变量 `UTOPIA_SECRET_KEY`，或数据目录下
-//! 首次启动生成的 `secret.key`。威胁模型是「库泄漏 ≠ 凭据泄漏」：一份 pg_dump、一个
-//! 只读库账号，拿到的是密文。能同时读到数据目录和库的人（登上了服务器）不在此列——
-//! 那是服务器访问控制的事。
+//! LLM API keys, Ask-the-Data connection strings, tokens in source configs, and API
+//! sources' push keys used to be stored in plaintext — anyone who could read the database
+//! (or a backup of it) had every external credential. These values are now sealed with
+//! AES-256-GCM before they reach the database, with the key kept out of the database:
+//! the `UTOPIA_SECRET_KEY` environment variable, or `secret.key` generated under the data
+//! directory on first start. The threat model is "a database leak is not a credential
+//! leak": a pg_dump, or a read-only database account, only gets ciphertext. Someone who
+//! can read both the data directory and the database (i.e. who has logged into the
+//! server) is out of scope here — that's a server access-control matter.
 //!
-//! **格式**：`enc:v1:` + base64(nonce(12) ‖ 密文+tag)。没有前缀的值按明文读（升级前
-//! 落库的旧行），启动时 [`crate::secrets`] 的调用方（store 的 backfill）把它们补封。
-//! 封印幂等：已封印的值再封一次原样返回，读路径与写路径都不必先判断。
+//! **Format**: `enc:v1:` + base64(nonce(12) ‖ ciphertext+tag). A value with no prefix is
+//! read as plaintext (a pre-upgrade legacy row); at startup, callers of [`crate::secrets`]
+//! (the store's backfill) seal those. Sealing is idempotent: sealing an already-sealed
+//! value returns it unchanged, so neither the read path nor the write path needs to check first.
 //!
-//! **一个进程一把钥匙**：服务启动时 [`init`] 一次；没初始化时 [`seal`] 原样返回、
-//! [`open`] 只认明文——单元测试与没有服务的工具走这条。
+//! **One key per process**: [`init`] is called once at service startup; before it's
+//! initialized, [`seal`] returns its input unchanged and [`open`] only accepts plaintext —
+//! this is the path taken by unit tests and tools that don't run the service.
 //!
-//! 密钥轮换不在这一版：换钥匙 = 用旧钥匙读出、新钥匙写回，是一次显式的迁移。
+//! Key rotation is out of scope for this version: rotating the key means reading with the
+//! old key and writing back with the new one, as an explicit migration.
 
 use aes_gcm::aead::{Aead, KeyInit, OsRng};
 use aes_gcm::{AeadCore, Aes256Gcm, Key, Nonce};

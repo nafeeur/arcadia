@@ -1,5 +1,6 @@
-/* 表格：只管皮。表头 fine 号大写字距，行间细线，指针停上一行变 surface-2。
-   数据列的对齐、宽度由页面决定；这里不做排序、不做分页（Pager 在 index.tsx）。 */
+/* Table: skin only. Header uses fine-size uppercase letter-spacing, thin lines
+   between rows, hovered row becomes surface-2. Column alignment and width are
+   decided by the page; this does no sorting and no pagination (Pager is in index.tsx). */
 import type {
   HTMLAttributes,
   TableHTMLAttributes,
@@ -41,7 +42,7 @@ export function Tr({
   className,
   ...props
 }: HTMLAttributes<HTMLTableRowElement> & {
-  /** 可点的行：指针停上变面，光标变手 */
+  /** Clickable row: hover fills the row, cursor becomes a pointer */
   interactive?: boolean;
 }) {
   return (

@@ -1,5 +1,5 @@
--- 核心：多租户表、任务队列、访问控制与部署配置。
--- pgvector 扩展提前建好（P1 的 chunks.embedding 依赖），使用 pgvector/pgvector 镜像自带
+-- Core: multi-tenant tables, job queue, access control and deployment settings.
+-- pgvector extension is created up front (chunks.embedding in P1 depends on it); the pgvector/pgvector image ships it already.
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE organizations (
@@ -11,27 +11,34 @@ CREATE TABLE organizations (
 CREATE TABLE users (
     id            UUID PRIMARY KEY,
     org_id        UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-    -- **唯一性只约束在职账号**，见下面那个部分索引。停用之后地址就放开了——
-    -- 否则「停用」等于「这个邮箱永久报废」，同一个人回来都建不了新账号
+    -- **Uniqueness only constrains active accounts** — see the partial index below.
+    -- The address frees up once deactivated; otherwise "deactivated" would mean
+    -- "this email is permanently unusable", and the same person couldn't even
+    -- make a new account.
     email         TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     display_name  TEXT NOT NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    -- 单租户部署里的系统管理员。第一个注册的人自动是（见 accounts.rs）
+    -- System administrator in a single-tenant deployment. The first person to register gets this automatically (see accounts.rs).
     is_admin      BOOLEAN NOT NULL DEFAULT FALSE,
-    -- **软删除，不是 DELETE。** 审计事件、合并日志、改类账本、口径确认的
-    -- `actor_id` 都指着这个人，而那些是审计材料——人走了仍然要能回答
-    -- 「当时是谁做的」。停用只断访问：`find_user_by_email` 与
-    -- `find_user_by_id` 各带一句 `deactivated_at IS NULL`，前者挡登录、
-    -- 后者挡已签发的 token（会话校验走它，所以停用立即生效）
+    -- **Soft delete, not DELETE.** Audit events, merge logs, the change ledger and
+    -- adjudication decisions all have an `actor_id` pointing at this person, and
+    -- those are audit material — we must still be able to answer "who did this"
+    -- after the person is gone. Deactivation only cuts off access:
+    -- `find_user_by_email` and `find_user_by_id` each carry a
+    -- `deactivated_at IS NULL` clause — the former blocks login, the latter
+    -- blocks already-issued tokens (session validation goes through it, so
+    -- deactivation takes effect immediately).
     deactivated_at TIMESTAMPTZ,
-    -- 谁停的。裸外键——停用者自己也可能被停用，而那条记录还得在
+    -- Who deactivated this account. A bare foreign key — the person who deactivated someone can themselves later be deactivated, and that record still needs to exist.
     deactivated_by UUID REFERENCES users(id)
 );
 
--- email 唯一，**但只管在职的**。停用过的账号里可以有重复地址，
--- 所以按 email 找人的查询必须带 `deactivated_at IS NULL`——它本来就要带
--- （不然停用的人还能登录），这里让那一句同时也是正确性的保证。
+-- email is unique, **but only among active accounts**. Deactivated accounts can
+-- share a duplicate address, so any query that looks a person up by email must
+-- carry `deactivated_at IS NULL` — it already needs that clause anyway (otherwise
+-- a deactivated person could still log in), so this index just makes that clause
+-- also a correctness guarantee.
 CREATE UNIQUE INDEX users_email_active_idx ON users (email) WHERE deactivated_at IS NULL;
 
 CREATE TABLE workspaces (
@@ -56,34 +63,43 @@ CREATE TABLE knowledge_bases (
     name         TEXT NOT NULL,
     kind         TEXT NOT NULL DEFAULT 'knowledge' CHECK (kind IN ('knowledge', 'memory')),
     description  TEXT,
-    -- 部署的公共默认空间（workspace 里第一个建的库）：永远 open、不可删（API 强制）
+    -- The deployment's public default space (the first KB created in a workspace): always open, never deletable (enforced by the API).
     is_default   BOOLEAN NOT NULL DEFAULT FALSE,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    -- open 库无矩阵记录时按部署角色行事，restricted 库仅 kb_members 里的成员
-    -- 可见（外人 NotFound）
+    -- An open KB with no membership row falls back to the deployment role; a
+    -- restricted KB is only visible to members listed in kb_members (outsiders get NotFound).
     visibility   TEXT NOT NULL DEFAULT 'open'
                  CHECK (visibility IN ('open', 'restricted')),
-    -- 要不要替人扩本体。**显式开关而不是从行为里推断**：从前靠「本体有没有被
-    -- 碰过」来判断，推错了会很荒唐——在提案上点一次 Add 就永久关掉建议功能，
-    -- 因为那记了一条带操作人的本体动作。而且它一旦为假就永不再真，本体被冻结在
-    -- 第一批文档碰巧包含的词汇上，可来源是每天持续进文档的
+    -- Whether to extend the ontology on the user's behalf. **An explicit toggle,
+    -- not something inferred from behavior** — it used to be inferred from
+    -- "has the ontology ever been touched", and a wrong inference there was
+    -- absurd: clicking Add once on a proposal would permanently turn off the
+    -- suggestion feature forever, because that recorded an ontology action with
+    -- an actor attached. And once it went false it could never go true again —
+    -- the ontology stayed frozen on whatever vocabulary the first batch of
+    -- documents happened to contain, even though new documents keep arriving every day.
     auto_extend_ontology BOOLEAN NOT NULL DEFAULT TRUE,
-    -- **不是「系统语言」**（见 docs/decisions/0004）。界面语言在客户端，后端没有
-    -- locale。这一列管的是**语料的语言**：类的 description 逐字进抽取提示词，
-    -- 读者是正在读你文档的模型——描述与被判断的文本同语言，判断更稳。所以中国
-    -- 团队读英文技术文档时，界面要中文而这一列该是 'en'，一个开关按不下去这两件事。
+    -- **Not the "system language"** (see docs/decisions/0004). Interface language
+    -- lives on the client; the backend has no locale. This column governs the
+    -- **corpus's language**: a class's description goes verbatim into the
+    -- extraction prompt, and the reader is the model reading your documents —
+    -- judgments are more reliable when the description and the judged text
+    -- share a language. So a Chinese team reading English technical docs wants
+    -- a Chinese interface while this column should be 'en' — one toggle can't do both jobs.
     --
-    -- 取值收在 CHECK 里而不是应用层：这一列会被用来挑一张编译期常量表，写进一个
-    -- 没有对应表的值只会静默回落到英文，不报错——那种错最难查
+    -- The allowed values live in a CHECK rather than the application layer:
+    -- this column picks a compile-time constant table, and a value with no
+    -- matching table would silently fall back to English instead of erroring —
+    -- that's the hardest kind of bug to track down.
     ontology_lang TEXT NOT NULL DEFAULT 'en',
-    -- 默认库永远 open（规则在 API 强制，这里是 DB 级双保险）
+    -- The default KB is always open (the rule is enforced by the API; this is the DB-level second guarantee).
     CONSTRAINT kb_default_open CHECK (NOT is_default OR visibility = 'open'),
     CONSTRAINT knowledge_bases_ontology_lang_chk CHECK (ontology_lang IN ('en', 'zh'))
 );
 CREATE INDEX knowledge_bases_workspace_idx ON knowledge_bases (workspace_id);
 
--- 任务队列：FOR UPDATE SKIP LOCKED 消费，见 docs/DESIGN.md 第 2 节
+-- Job queue: consumed with FOR UPDATE SKIP LOCKED, see docs/DESIGN.md section 2.
 CREATE TABLE jobs (
     id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     kind         TEXT NOT NULL,
@@ -99,7 +115,7 @@ CREATE TABLE jobs (
 );
 CREATE INDEX jobs_claim_idx ON jobs (run_at) WHERE status = 'queued';
 
--- 工作区级 LLM 设置（对话与 embedding 分开配置，OpenAI 兼容协议）
+-- Workspace-level LLM settings (chat and embedding configured separately, OpenAI-compatible protocol).
 CREATE TABLE llm_settings (
     workspace_id   UUID PRIMARY KEY REFERENCES workspaces(id) ON DELETE CASCADE,
     chat_base_url  TEXT,
@@ -112,14 +128,14 @@ CREATE TABLE llm_settings (
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- KB 级访问控制。部署角色挂隐形 workspace（memberships 不动）；每个 KB 自带
--- 角色矩阵，在库自己的 Settings 里配置
+-- KB-level access control. Deployment roles hang off an invisible workspace
+-- (memberships untouched); each KB carries its own role matrix, configured in that KB's own Settings.
 CREATE TABLE kb_members (
     kb_id      UUID NOT NULL REFERENCES knowledge_bases(id) ON DELETE CASCADE,
     user_id    UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role       TEXT NOT NULL CHECK (role IN ('viewer', 'editor', 'admin')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    -- 谁把这个成员加进来的（无人可归时留 NULL，展示退化为只有时间）
+    -- Who added this member (left NULL when there's no one to attribute it to; the UI then falls back to showing just the timestamp).
     added_by   uuid REFERENCES users(id) ON DELETE SET NULL,
     PRIMARY KEY (kb_id, user_id)
 );
@@ -127,37 +143,48 @@ CREATE TABLE kb_members (
 CREATE TABLE deployment_settings (
     singleton         BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton),
     open_registration BOOLEAN NOT NULL DEFAULT TRUE,
-    -- 任务 worker 并发数（系统设置可改；调度循环热读，改动即时生效）。
-    -- **这是外层兜底而不是节流**：真正的节流交给按模型的信号量（见
-    -- model_concurrency），这里只防任务无限堆积。要明显大于各模型限额之和，
-    -- 否则被限流的任务会占满槽位把别的饿死
+    -- Job worker concurrency (changeable in system settings; the scheduling loop
+    -- reads it hot, so changes take effect immediately). **This is an outer
+    -- backstop, not the throttle** — the real throttling is done by the
+    -- per-model semaphore (see model_concurrency); this only guards against
+    -- jobs piling up without bound. It should be comfortably larger than the
+    -- sum of the per-model limits, otherwise throttled jobs can occupy every
+    -- slot and starve everything else.
     worker_concurrency INT NOT NULL DEFAULT 32
         CHECK (worker_concurrency BETWEEN 1 AND 32),
-    -- 本体铺进抽取提示词的字符预算，超了就改成按分块检索候选。
-    -- 放部署设置而不是环境变量：这一档要能不重启就改——定它需要每个本体规模
-    -- 下全量内联与按块检索各一组对照，靠重启服务改一档的话，那条曲线不会有人
-    -- 跑第二遍。24000 字符（约 6000 token）是拍的，正等那条曲线来定
+    -- Character budget for inlining the ontology into the extraction prompt;
+    -- past this it switches to per-chunk retrieval candidates instead. This
+    -- lives in deployment settings rather than an environment variable because
+    -- it needs to be changeable without a restart — tuning it requires a pair
+    -- of comparisons (full inline vs. per-chunk retrieval) at every ontology
+    -- size, and if changing it meant restarting the service, nobody would ever
+    -- run that comparison a second time. 24000 characters (roughly 6000 tokens) is a placeholder, pending that comparison.
     ontology_prompt_budget INTEGER NOT NULL DEFAULT 24000,
-    -- 没在 model_concurrency 里配过的模型走这个缺省
+    -- Fallback for any model with no entry in model_concurrency.
     default_model_concurrency INT NOT NULL DEFAULT 10,
-    -- JWT 签名密钥。**首次启动自动生成**，于是「照 README 跑起来」和「安全」
-    -- 不再是两件要分别做的事——默认值 dev-secret-change-me 上生产这类事故，
-    -- 靠提醒是防不住的。UTOPIA_JWT_SECRET 仍然优先于本列：轮换密钥、或者要
-    -- 多个实例显式对齐时填环境变量即可，那条路没有被关掉
+    -- JWT signing key. **Generated automatically on first start**, so "get it
+    -- running per the README" and "secure" stop being two separate chores —
+    -- reminders alone don't prevent the kind of incident where a default value
+    -- like dev-secret-change-me ends up in production. UTOPIA_JWT_SECRET still
+    -- takes priority over this column: to rotate the key, or to align multiple
+    -- instances explicitly, just set the environment variable — that path stays open.
     jwt_secret TEXT,
-    -- 新库的 ontology_lang 缺省，含义见 knowledge_bases.ontology_lang
+    -- Default ontology_lang for new KBs; see knowledge_bases.ontology_lang for what it means.
     default_ontology_lang TEXT NOT NULL DEFAULT 'en',
     CONSTRAINT deployment_default_ontology_lang_chk
         CHECK (default_ontology_lang IN ('en', 'zh'))
 );
 INSERT INTO deployment_settings DEFAULT VALUES;
 
--- 并发限制**按模型算，不按部署算**。真正的约束是模型供应商的速率限制，那是
--- 按模型（连同 base_url）来的：本地 Ollama 可能只扛 2 个并发，托管 API 能吃
--- 50——一个全局数字管两者本来就不对。
+-- Concurrency is limited **per model, not per deployment**. The real constraint
+-- is the model provider's rate limit, and that's per model (together with its
+-- base_url): a local Ollama might only handle 2 concurrent calls, a hosted API
+-- 50 — one global number can't govern both correctly.
 --
--- 限流放在 LLM 调用处而不是任务调度处：不调模型的任务（文件夹同步）不该受它
--- 约束，调不同模型的任务（抽取用 chat、摄入用 embedding）之间也不该互相挤。
+-- The throttle sits at the LLM call site rather than at job scheduling: jobs
+-- that don't call a model (folder sync) shouldn't be constrained by it, and
+-- jobs that call different models (extraction uses chat, ingestion uses
+-- embedding) shouldn't crowd each other out either.
 CREATE TABLE model_concurrency (
     base_url        TEXT NOT NULL,
     model           TEXT NOT NULL,

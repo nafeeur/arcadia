@@ -1,13 +1,17 @@
-//! 问数语义映射的 Agentic 探索：读挂载源的 schema + KB 既有概念，让 LLM 提议
-//! "业务概念（Metric/Dimension 实体）→ 数据资产定义" 的映射。
+//! Agentic exploration for Ask-the-Data semantic mappings: reads a mounted source's schema
+//! plus the KB's existing concepts, and has the LLM propose mappings from
+//! "business concept (Metric/Dimension entity) → data-asset definition".
 //!
-//! 提议写进 `concept_mappings`（status = proposed）→ Review 页自成一档，
-//! Confirm / Reject 之后 status 变 confirmed，问数只读确认过的那些。
+//! Proposals are written into `concept_mappings` (status = proposed) → they get their own tab
+//! on the Review page; after Confirm / Reject, status becomes confirmed, and Ask-the-Data only
+//! reads the confirmed ones.
 //!
-//! **从前它是一条 0.6 置信的 `mapped_to` 事实**,借「低置信事实」那一档露面。
-//! 搬出来的理由见 0011:它不是关于世界的断言,是配置——而「确认」这个动作
-//! 当时是 `UPDATE facts SET confidence = 1.0`,原地改一张不许原地改的表。
-//! agent 只提议，口径生效权在人——与消解"宁分勿合"同一哲学。
+//! **This used to be a `mapped_to` fact at 0.6 confidence**, riding along under the
+//! "low-confidence fact" tab. See 0011 for why it moved out: it isn't an assertion about the
+//! world, it's configuration — and "confirming" it used to mean `UPDATE facts SET confidence =
+//! 1.0`, an in-place edit to a table that isn't supposed to allow in-place edits.
+//! The agent only proposes; the human holds the power to make a mapping take effect — the same
+//! philosophy as resolution's "when unsure, keep separate".
 
 use crate::llm_util;
 use crate::state::AppState;
@@ -15,10 +19,12 @@ use uuid::Uuid;
 
 const MAX_SCHEMA_CHARS: usize = 12_000;
 
-/// 探索把 schema 里的量与维度落成 Metric / Dimension 实体，而这两个类不在任何
-/// 内置本体包里——0009 之后建库不再自带类。没有它们，下面的 `type_id` 查不到，
-/// 每条提议都被 `continue` 吞掉，页面只说"已排队"就再无下文（#223）。
-/// 所以探索前把两个类补上：builtin，描述给抽取提示词，本体页可以改
+/// Exploration turns quantities and dimensions from the schema into Metric / Dimension
+/// entities, but those two types aren't in any built-in ontology pack — since 0009, a new KB
+/// no longer ships with its own types. Without them, the `type_id` lookup below finds nothing,
+/// every proposal gets silently swallowed by `continue`, and the page just says "queued" with
+/// no follow-up (#223). So exploration backfills the two types first: builtin, with a
+/// description fed to the extraction prompt, editable afterwards on the ontology page
 async fn ensure_concept_types(pool: &sqlx::PgPool, kb_id: Uuid) -> anyhow::Result<()> {
     for (key, label, description) in [
         (
@@ -62,7 +68,7 @@ pub async fn explore_mappings(state: &AppState, kb_id: Uuid) -> anyhow::Result<(
     }
     ensure_concept_types(&state.pool, kb_id).await?;
 
-    // 各源 schema（引擎直读，保证新鲜；限量防 prompt 爆炸）
+    // Each source's schema (read directly from the engine to stay fresh; capped to avoid a prompt blowup)
     let mut schema_txt = String::new();
     for ds in &sources {
         let (engine, conn) = utopia_store::datasources::engine_and_conn(&state.pool, ds.id).await?;

@@ -1,8 +1,13 @@
-// 顶栏弹出面板的"原地变形"（FLIP）：面板盖在触发按钮原位，首帧压到按钮的
-// 真实边界（圆角 999px），下一帧过渡到面板全形——按钮"长成"面板；关闭时反向缩回。
+// "Morph in place" (FLIP) for header popover panels: the panel covers the
+// trigger button's original position, the first frame is clamped to the
+// button's actual bounds (999px border radius), and the next frame
+// transitions to the panel's full shape — the button "grows into" the panel;
+// closing reverses that shrink.
 //
-// **抽成一份共用**，而不是让用户菜单和告警各写一遍：这两个面板紧挨着，
-// 时长或缓动差一点点，来回点两下就看得出来。
+// **Factored into one shared hook** rather than having the user menu and
+// alerts each write their own: these two panels sit right next to each
+// other, and even a small difference in duration or easing shows up the
+// moment you click back and forth between them.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const OPEN_MS = 260;
@@ -13,15 +18,18 @@ function reduced(): boolean {
 }
 
 /**
- * 返回 `{ open, setOpen, close, anchorRef, panelRef }`。
+ * Returns `{ open, setOpen, close, anchorRef, panelRef }`.
  *
- * `close()` 会先播收回动画再卸载；要立刻关（比如导航走了）直接 `setOpen(false)`。
- * 面板外点击与 Esc 已经接好，挂在 `rootRef` 上。
+ * `close()` plays the collapse animation before unmounting; to close
+ * immediately (e.g. navigation happened), call `setOpen(false)` directly.
+ * Outside-click and Esc are already wired up, attached to `rootRef`.
  */
 export function usePopoverFlip<A extends HTMLElement, P extends HTMLElement>(
-  /** 变形的锚点角。**面板贴哪边就写哪边**：顶栏右侧的面板贴右上角，
-   *  贴左边的面板（比如图例的「+N 个类」）要写 "top left"，
-   *  否则它会从右边缘往左长出来，看着像从别处飞过来的 */
+  /** The morph's anchor corner. **Write whichever side the panel hugs**: a
+   *  panel on the right of the header hugs the top-right corner; a panel
+   *  hugging the left (e.g. the legend's "+N classes") should say "top left",
+   *  otherwise it grows leftward from the right edge and looks like it flew
+   *  in from somewhere else */
   origin: "top right" | "top left" | "bottom left" = "top right",
 ) {
   const [open, setOpen] = useState(false);
@@ -49,10 +57,13 @@ export function usePopoverFlip<A extends HTMLElement, P extends HTMLElement>(
         panel.style.transform = "scale(1, 1)";
         panel.style.borderRadius = "12px";
         panel.style.opacity = "1";
-        // 动画完把行内样式**清干净**，别留一个 `scale(1,1)`。
-        // 恒等变换看着无害，但它照样生成合成层，于是面板里绝对定位的子元素
-        // 会按设备像素吸附一次——在 DPR 1.5 上就是 0.67px 的偏移，
-        // 而关闭按钮要跟触发它的那个按钮**原位重合**，差一个物理像素也看得出来
+        // Once the animation finishes, **fully clear** the inline styles —
+        // don't leave a `scale(1,1)` behind. An identity transform looks
+        // harmless, but it still creates a compositing layer, which snaps
+        // absolutely-positioned children inside the panel to a device pixel
+        // once — a 0.67px offset at DPR 1.5 — and the close button needs to
+        // **exactly overlap** the button that triggered it, where even one
+        // physical pixel of difference is visible
         done = window.setTimeout(() => {
           panel.style.transition = "";
           panel.style.transform = "";
@@ -79,8 +90,9 @@ export function usePopoverFlip<A extends HTMLElement, P extends HTMLElement>(
     closingRef.current = true;
     panel.style.transformOrigin = origin;
     const a = anchor.getBoundingClientRect();
-    // offsetWidth/Height 是布局尺寸，不受当前 transform 影响——
-    // 用 getBoundingClientRect 会拿到已经缩过的值，越缩越小
+    // offsetWidth/Height are layout dimensions, unaffected by the current
+    // transform — getBoundingClientRect would return the already-scaled
+    // value, shrinking further each time
     panel.style.transition = `transform ${CLOSE_MS}ms cubic-bezier(0.5,0,0.9,0.4), border-radius ${CLOSE_MS}ms cubic-bezier(0.5,0,0.9,0.4), opacity 0.16s ease`;
     panel.style.transform = `scale(${a.width / panel.offsetWidth}, ${a.height / panel.offsetHeight})`;
     panel.style.borderRadius = "999px";

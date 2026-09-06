@@ -4,7 +4,7 @@ use axum::Json;
 use serde_json::json;
 use utopia_core::AppError;
 
-/// axum 响应包装（orphan rule：IntoResponse 不能直接实现在 core 类型上）。
+/// axum response wrapper (orphan rule: IntoResponse can't be implemented directly on the core type).
 pub struct ApiErr(pub AppError);
 
 impl<E: Into<AppError>> From<E> for ApiErr {
@@ -17,7 +17,7 @@ pub type ApiResult<T> = Result<T, ApiErr>;
 
 impl IntoResponse for ApiErr {
     fn into_response(self) -> Response {
-        // code 与 detail 只有 Invalid 才有；其余保持原样，转换可以一条条推进
+        // `code` and `detail` only exist for `Invalid`; the rest pass through unchanged, so the conversion can be migrated one variant at a time
         let mut code: Option<&'static str> = None;
         let mut detail: Option<String> = None;
         let (status, message) = match &self.0 {

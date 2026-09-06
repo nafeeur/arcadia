@@ -1,18 +1,27 @@
-//! #268：删除文档是认知轴上的一个事件，不是减法。
+//! #268: deleting a document is an event on the cognitive axis, not subtraction.
 //!
-//! 此前 `documents::delete` 一句 DELETE，外键把分块与证据一并级联掉：事实留在图里、
-//! 活着、却没了出处。现在文档打墓碑，分块打标，**什么内容都不清**，只作废「每条出处
-//! 都已删除」的事实。这里守五件事：
+//! Previously `documents::delete` was a single DELETE, and foreign keys cascaded
+//! away the chunks and evidence with it: facts stayed in the graph, still live, but
+//! with no source left. Now the document gets a tombstone, its chunks get marked
+//! superseded, **no content is ever cleared**, and only facts whose every source has
+//! been deleted are invalidated. Five things are guarded here:
 //!
-//! 1. **只作废没有别的出处的。** 甲乙两篇都作证的事实，删甲不动它；只有甲作证的作废。
-//!    分块打了标但正文还在；文档不再出现在列表里。
-//! 2. **删两次报错。**
-//! 3. **撤销原路回来。** 文档、这次打标的分块、这次作废的事实复活；删之前就已作废的
-//!    事实不在名单上，不会被误救。撤销一篇没删的报错。
-//! 4. **同内容重传复活墓碑**：同一个 id 回来，而不是撞唯一索引报「已存在」。
-//! 5. **判据看文档，不看分块。** 停在旧版分块上的证据是 stale，不是没了源——不作废。
+//! 1. **Only invalidate facts with no other source.** A fact vouched for by both
+//!    documents A and B is untouched when A is deleted; a fact vouched for only by A
+//!    is invalidated. A's chunks are marked superseded but the body text stays; the
+//!    document no longer appears in the library listing.
+//! 2. **Deleting twice is an error.**
+//! 3. **Restoring reverses it exactly.** The document, the chunks marked superseded
+//!    this time, and the facts invalidated this time all come back; a fact that was
+//!    already invalidated before the deletion is not on that list and is not
+//!    mistakenly revived. Restoring a document that was never deleted is an error.
+//! 4. **Re-uploading identical content revives the tombstone**: the same id comes
+//!    back instead of a unique-index "already exists" error.
+//! 5. **The test is the document, not the chunk.** Evidence still pinned to an old
+//!    chunk version is stale, not sourceless — it is not invalidated.
 //!
-//! 没有 `UTOPIA_DATABASE_URL` 时跳过而不是失败。自建自拆，绝不碰已有的库。
+//! Skips rather than fails when `UTOPIA_DATABASE_URL` is unset. Builds and tears
+//! down its own data; never touches an existing database.
 
 use sqlx::PgPool;
 use utopia_store::documents;

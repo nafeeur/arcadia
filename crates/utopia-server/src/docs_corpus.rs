@@ -1,9 +1,10 @@
-//! Charter 语料：与前端 Docs 页同一批 markdown（单一事实来源，随二进制升级）。
-//! 新增文章 = 前端 Docs.tsx 清单加一行 + 这里 ARTICLES 加一行。
+//! Charter corpus: the same batch of markdown as the frontend Docs page (single source of
+//! truth, upgraded together with the binary).
+//! Adding an article = one line in the frontend Docs.tsx listing + one line in ARTICLES here.
 
 use utopia_search::{DocsIndex, DocsSection};
 
-/// (slug, 标题, 正文)。slug 必须与前端 DOCS 清单一致（引用链接 /docs/{slug} 才对得上）。
+/// (slug, title, body). slug must match the frontend DOCS listing exactly (otherwise reference links to /docs/{slug} won't line up).
 const ARTICLES: &[(&str, &str, &str)] = &[
     (
         "arcadia",
@@ -22,13 +23,14 @@ const ARTICLES: &[(&str, &str, &str)] = &[
     ),
 ];
 
-/// 启动时建索引；语料是编译期常量，失败即程序错误，响亮地死。
+/// Builds the index at startup; the corpus is a compile-time constant, so a failure here is a program bug — die loudly.
 pub fn build_index() -> DocsIndex {
-    DocsIndex::build(&sections()).expect("Charter 文档索引构建失败")
+    DocsIndex::build(&sections()).expect("Charter docs index build failed")
 }
 
-/// 按 h2 切节：一节一条索引记录，命中返回具体小节而不是整篇。
-/// h2 之前的引言归入"标题节"（anchor 为空，链接落到文章顶部）。
+/// Splits by h2: one index record per section, so a hit returns the specific section rather
+/// than the whole article. The preamble before the first h2 becomes the "title section"
+/// (empty anchor, link lands at the top of the article).
 fn sections() -> Vec<DocsSection> {
     let mut out = Vec::new();
     for (slug, title, body) in ARTICLES {
@@ -51,7 +53,7 @@ fn sections() -> Vec<DocsSection> {
         for line in body.lines() {
             if let Some(h) = line.strip_prefix("## ") {
                 flush(&heading, &anchor, &mut buf);
-                // 与前端 tocOf 同法清洗：去掉行内 code/强调符号
+                // Cleaned the same way as the frontend's tocOf: strips inline code/emphasis markers
                 heading = h.replace(['`', '*'], "").trim().to_string();
                 anchor = slugify(&heading);
             } else if !line.starts_with("# ") {
@@ -63,8 +65,9 @@ fn sections() -> Vec<DocsSection> {
     out
 }
 
-/// 与前端 Docs.tsx 的 slugify 逐字对齐（锚点跳转依赖两边一致）：
-/// 小写后，[a-z0-9一-龥] 之外的连续串折成单个 '-'，再去掉首尾 '-'。
+/// Matches the frontend Docs.tsx's slugify character-for-character (anchor navigation depends
+/// on both sides agreeing): lowercase, then any run outside [a-z0-9一-龥] collapses to
+/// a single '-', then leading/trailing '-' are stripped.
 fn slugify(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut dash = false;
@@ -105,9 +108,9 @@ mod tests {
     #[test]
     fn ingest_splits_into_sections() {
         let secs = sections();
-        assert!(secs.len() >= 4, "ingest.md 应切出引言 + 3 个以上小节");
+        assert!(secs.len() >= 4, "ingest.md should split into a preamble + 3 or more sections");
         assert!(secs.iter().any(|s| s.anchor == "shared-semantics"));
-        // 引言节：anchor 空，heading 用文章标题
+        // Preamble section: empty anchor, heading uses the article title
         assert!(secs
             .iter()
             .any(|s| s.anchor.is_empty() && s.heading == "Ingest interfaces"));

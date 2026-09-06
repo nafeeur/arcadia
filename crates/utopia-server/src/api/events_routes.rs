@@ -1,5 +1,6 @@
-//! KB 事件流（SSE）：文档摄入/抽取状态与审核队列变化的实时推送。
-//! 前端收到事件只做 react-query 失效重取——事件本身不带业务数据，天然幂等。
+//! KB event stream (SSE): real-time push for document ingest/extraction status and review-queue changes.
+//! The frontend only uses a received event to invalidate and refetch react-query state — the event itself
+//! carries no business data, so it's naturally idempotent.
 
 use axum::extract::{Path, State};
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -30,7 +31,7 @@ pub async fn kb_events(
                         .data(serde_json::to_string(&ev).unwrap_or_else(|_| "{}".into())));
                 }
                 Ok(_) => continue,
-                // 消费落后被跳帧：无所谓，事件只是"该刷新了"的信号
+                // Consumer fell behind and got a dropped frame: fine, the event is only a "time to refresh" signal
                 Err(broadcast::error::RecvError::Lagged(_)) => continue,
                 Err(broadcast::error::RecvError::Closed) => return,
             }

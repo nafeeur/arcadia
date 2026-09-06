@@ -1,9 +1,10 @@
-//! 连接串解析。一个输入框、四种 scheme；这里把 URL 拆成各引擎要的字段。
+//! Connection-string parsing. One input box, four schemes; this splits the URL into the fields each engine needs.
 //!
-//! 写法沿用 `postgres://user:pass@host/db` 的形状：凭据在 userinfo 里，HTTP 族的
-//! 令牌放 password 位（`databricks://:TOKEN@…`），路径是「目录 / 库 / schema」，
-//! 引擎特有的开关走 query。`ssl=false` 让 HTTP 族走明文——给本地代理与测试用，
-//! 线上的三家都只认 https。
+//! The notation follows the shape of `postgres://user:pass@host/db`: credentials live in the
+//! userinfo, and for the HTTP-based engines the token goes in the password slot
+//! (`databricks://:TOKEN@…`), the path is "catalog / database / schema", and engine-specific
+//! switches go in the query string. `ssl=false` lets the HTTP-based engines use plaintext — for
+//! local proxies and tests; all three of them require https in production.
 
 use percent_encoding::percent_decode_str;
 use url::Url;

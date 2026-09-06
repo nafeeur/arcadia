@@ -47,7 +47,7 @@ pub async fn hybrid(
     };
     lists.push(lexical);
 
-    // 向量（可选通道）
+    // Vector (optional channel)
     let settings = utopia_store::settings::get(&state.pool, workspace_id).await?;
     if let Some(client) = settings.as_ref().and_then(llm_util::embed_client) {
         match client.embed(&[query.to_string()]).await {
@@ -63,7 +63,7 @@ pub async fn hybrid(
                 lists.push(ids.into_iter().map(|id| id.to_string()).collect());
             }
             Ok(_) => {}
-            Err(e) => tracing::warn!(error = %e, "查询 embedding 失败，降级为纯 BM25"),
+            Err(e) => tracing::warn!(error = %e, "query embedding failed, falling back to pure BM25"),
         }
     }
 

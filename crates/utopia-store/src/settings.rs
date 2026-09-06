@@ -3,8 +3,8 @@ use utopia_core::models::LlmSettings;
 use utopia_core::{secrets, AppError, AppResult};
 use uuid::Uuid;
 
-/// 出库即开封：两把 API key 在库里是封印的（`utopia_core::secrets`）。
-/// 任何返回 `LlmSettings` 的查询都从这里过
+/// Unsealed on the way out: both API keys are sealed at rest (`utopia_core::secrets`).
+/// Every query that returns `LlmSettings` passes through here.
 fn opened(mut s: LlmSettings) -> AppResult<LlmSettings> {
     s.chat_api_key = secrets::open_opt(s.chat_api_key.as_deref()).map_err(AppError::Other)?;
     s.embed_api_key = secrets::open_opt(s.embed_api_key.as_deref()).map_err(AppError::Other)?;
@@ -20,8 +20,10 @@ pub async fn get(pool: &PgPool, workspace_id: Uuid) -> AppResult<Option<LlmSetti
     row.map(opened).transpose()
 }
 
-/// 任取一个配了对话模型的工作区设置。给端点探针用：端点地址是部署共用的，
-/// 从哪个工作区的配置读到的都是同一个地方，而探针没有"当前工作区"这个上下文。
+/// Picks any one workspace's settings that has a chat model configured. Used by the
+/// endpoint probe: the endpoint address is shared across the deployment, so it reads the
+/// same place regardless of which workspace's config it comes from, and the probe has no
+/// "current workspace" context.
 pub async fn any_with_chat(pool: &PgPool) -> AppResult<Option<LlmSettings>> {
     let row: Option<LlmSettings> = sqlx::query_as(
         "SELECT * FROM llm_settings
@@ -33,7 +35,7 @@ pub async fn any_with_chat(pool: &PgPool) -> AppResult<Option<LlmSettings>> {
     row.map(opened).transpose()
 }
 
-/// upsert；api_key 传 None 表示保留旧值（前端不回传密钥）。
+/// Upsert; passing None for an api_key means keep the old value (the frontend never echoes secrets back).
 #[allow(clippy::too_many_arguments)]
 pub async fn upsert(
     pool: &PgPool,
@@ -46,7 +48,7 @@ pub async fn upsert(
     embed_model: Option<&str>,
     embed_dim: Option<i32>,
 ) -> AppResult<LlmSettings> {
-    // 入库即封印；None 仍是 None（保留旧值）
+    // Sealed on the way in; None stays None (keeps the old value)
     let chat_api_key = secrets::seal_opt(chat_api_key);
     let embed_api_key = secrets::seal_opt(embed_api_key);
     let row: LlmSettings = sqlx::query_as(

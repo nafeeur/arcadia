@@ -1,7 +1,8 @@
-//! 个人访问令牌的发放与撤销（0014）。
+//! Issuing and revoking personal access tokens (0014).
 //!
-//! **走的是账户级路由,不是知识库级**——令牌属于人,而人可以进好几个库。
-//! 哪几个库归令牌自己的 `kb_ids` 管,那是收窄,不是授权。
+//! **These are account-level routes, not knowledge-base-level** — a token belongs to a person, and
+//! a person can be in several knowledge bases. Which ones a token itself can reach is governed by
+//! its own `kb_ids`; that's a narrowing, not a grant of authorization.
 
 use axum::extract::{Path, State};
 use axum::Json;
@@ -16,26 +17,26 @@ use crate::state::AppState;
 #[derive(Deserialize)]
 pub struct IssueReq {
     pub name: String,
-    /// read | write。缺省只读——要让 agent 写进账本,得显式勾
+    /// read | write. Defaults to read-only — letting an agent write to the ledger requires opting in explicitly
     #[serde(default = "default_scope")]
     pub scope: String,
-    /// 缺省 = 这个人能进的全部库
+    /// Default = every KB this person can access
     #[serde(default)]
     pub kb_ids: Option<Vec<Uuid>>,
-    /// 多少天后过期。缺省 90 天;显式给 0 表示不过期
+    /// Days until expiry. Defaults to 90; explicitly passing 0 means it never expires
     #[serde(default = "default_days")]
     pub expires_in_days: i64,
 }
 fn default_scope() -> String {
     "read".into()
 }
-/// 90 天。**不过期是能选的,但不是缺省**——一枚配在别人笔记本上的钥匙,
-/// 忘了它存在是常态
+/// 90 days. **Never-expiring is an option, but not the default** — a key sitting in someone
+/// else's notebook is normally forgotten about
 fn default_days() -> i64 {
     90
 }
 
-/// 发一枚。**明文只在这一次的响应里出现**,之后库里只有哈希。
+/// Issue one. **The plaintext appears only in this one response** — after that, only its hash is stored.
 pub async fn issue(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -62,7 +63,7 @@ pub async fn issue(
         json!({ "name": view.name, "scope": view.scope }),
     )
     .await;
-    // `token` 这个字段只在这里出现一次。列表接口永远给不出它
+    // The `token` field appears exactly this once. The list endpoint can never produce it
     Ok(Json(json!({ "token": plain, "info": view })))
 }
 

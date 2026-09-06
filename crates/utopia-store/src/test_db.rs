@@ -1,16 +1,19 @@
-//! 集成测试连库的入口（#248）。
+//! Entry point for integration tests that connect to a database (#248).
 //!
-//! 每个连库测试都以同一句开头：没有 `UTOPIA_DATABASE_URL` 就跳过而不是失败，
-//! 本地随手 `cargo test` 不必先起库。可 CI 上也这么跳，绿色就成了假的：backend job
-//! 没有库，24 个 store 集成测试全部静默返回，而有库的 migrations job 只跑了一个。
+//! Every database test starts with the same line: skip rather than fail when
+//! `UTOPIA_DATABASE_URL` isn't set, so a casual local `cargo test` doesn't require a database
+//! to be running first. But CI can skip the same way, and then green becomes a lie: the
+//! backend job has no database, so all 24 store integration tests silently return, while the
+//! migrations job (which does have a database) only runs one of them.
 //!
-//! 所以跳过要分场合：设了 `UTOPIA_TEST_REQUIRE_DB` 的地方（CI 的连库 job），
-//! 没有库就是失败——「本该跑的没跑」得看得见。
+//! So skipping has to depend on context: wherever `UTOPIA_TEST_REQUIRE_DB` is set (CI's
+//! database-connected job), no database is a failure — "should have run but didn't" needs to
+//! be visible.
 
-/// 连库测试用的数据库地址。`None` = 这次跳过。
+/// Database URL for database-backed tests. `None` = skip this run.
 ///
-/// 设了 `UTOPIA_TEST_REQUIRE_DB` 而没有地址时 panic：这是给 CI 的——那里跳过
-/// 等于测试根本没执行，不能显示绿色
+/// Panics if `UTOPIA_TEST_REQUIRE_DB` is set but there's no URL: this is for CI — there,
+/// skipping would mean the test never ran at all, and that must not show up green.
 pub fn url() -> Option<String> {
     match std::env::var("UTOPIA_DATABASE_URL") {
         Ok(u) if !u.trim().is_empty() => Some(u),
@@ -21,7 +24,7 @@ pub fn url() -> Option<String> {
                 );
             }
             eprintln!(
-                "跳过：未设 UTOPIA_DATABASE_URL（设 UTOPIA_TEST_REQUIRE_DB=1 让跳过变成失败）"
+                "Skipping: UTOPIA_DATABASE_URL not set (set UTOPIA_TEST_REQUIRE_DB=1 to turn a skip into a failure)"
             );
             None
         }

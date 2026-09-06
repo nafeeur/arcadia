@@ -1,7 +1,7 @@
-//! 业务规则的增删改查（0021 / #277）。
+//! CRUD for business rules (0021 / #277).
 //!
-//! **写规则要 Editor**：它是本体的一部分——一条规则改一次，全库的结论跟着变，
-//! 与改一条公理同一个量级。
+//! **Writing a rule requires Editor**: it's part of the ontology — changing one rule changes derived
+//! conclusions across the whole base, the same weight of consequence as editing an axiom.
 
 use axum::extract::{Path, State};
 use axum::Json;
@@ -41,10 +41,10 @@ pub struct RulePatch {
     pub description: Option<String>,
     #[serde(default)]
     pub enabled: Option<bool>,
-    /// 给了就整组替换；不给就不动条件
+    /// If given, replaces the whole set; if omitted, conditions are left untouched
     #[serde(default)]
     pub conditions: Option<Vec<ConditionInput>>,
-    /// 结论也整组替换：三格互相定义，只改一格会留下半截状态
+    /// Conclusion is also replaced as a whole set: the three fields define each other, and changing only one would leave a half-updated state
     #[serde(default)]
     pub conclusion: Option<String>,
     #[serde(default)]
@@ -155,7 +155,7 @@ pub async fn delete(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// 一条规则此刻标了谁。界面上那个数字点开就是这份列表。
+/// Who a rule currently marks. Clicking that number in the UI opens this list.
 pub async fn matches(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -178,10 +178,12 @@ pub struct MatchQuery {
     pub per: Option<i64>,
 }
 
-/// 现在就跑一遍，把这条规则的结论算出来。
+/// Run right now and compute this rule's conclusions.
 ///
-/// **不等下一个物化周期**：写规则的人想立刻看见它推出了什么，而周期默认一小时。
-/// 走的是同一个 `materialize`——预览与正式是同一条路，不另写一份会漂移的逻辑。
+/// **Doesn't wait for the next materialization cycle**: whoever wrote the rule wants to see
+/// what it derives immediately, and the cycle defaults to an hour. Goes through the same
+/// `materialize` — preview and the real run are the same path, so there's no separate copy
+/// of the logic that can drift.
 pub async fn run_now(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,

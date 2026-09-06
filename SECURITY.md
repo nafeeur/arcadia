@@ -1,8 +1,6 @@
 # Security
 
-*[中文版](SECURITY.zh-CN.md)*
-
-Utopia is at v0.1. Below are the **known, unresolved** limits — not a vulnerability report,
+Arcadia is at v0.1. Below are the **known, unresolved** limits — not a vulnerability report,
 but the places the design has not reached yet.
 
 ## Before you put this on a public network
@@ -45,7 +43,6 @@ source.
 
 ## Reporting a vulnerability
 
-Email **security@deeplethe.com** rather than opening a public issue. Include the affected
-version or commit, the endpoint or component, and steps to reproduce. You will get an
-acknowledgement within a few days, and the release that carries the fix names you unless you
-ask otherwise.
+Open a private [GitHub Security Advisory](../../security/advisories/new) on this repository
+rather than a public issue. Include the affected version or commit, the endpoint or
+component, and steps to reproduce.

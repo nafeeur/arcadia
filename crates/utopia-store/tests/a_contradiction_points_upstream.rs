@@ -1,17 +1,23 @@
-//! 0017：派生撞上断言时，让路这件事从静默变成可见。
+//! 0017: when a derivation collides with an assertion, that yielding goes from
+//! silent to visible.
 //!
-//! `ceo_of ⊑ works_at`，`works_at` functional。Mira `ceo_of` Acme 推出 Mira `works_at`
-//! Acme，而账本里说她 `works_at` Globex。这里守四件事：
+//! `ceo_of ⊑ works_at`, `works_at` is functional. Mira `ceo_of` Acme derives Mira
+//! `works_at` Acme, but the ledger says she `works_at` Globex. Four things are
+//! guarded here:
 //!
-//! 1. **派生不落地，而队列里有一行。** `run` 记一条 `derived_contradiction`，left 是被撞
-//!    的断言，right 是最后一条前提，detail 写着推出来的三元组；`materialize` 拦下它。
-//! 2. **修了就落。** 给旧断言一个结束日期，派生的区间与它不再重叠，下一轮落地，
-//!    队列里那一行随之清掉。
-//! 3. **认可就落。** 人说两边都对，`accepted` 之后派生照常落地，那一行留着不再报。
-//! 4. **派生之间互撞按规则对聚合。** 两个 ceo 推出两条互斥的 works_at，进
-//!    `ontology_defects` 一行 `rules_disagree`，两条派生都不落。
+//! 1. **The derivation does not land; a row appears in the queue.** `run` records a
+//!    `derived_contradiction`: left is the assertion that was hit, right is the last
+//!    premise, and detail carries the derived triple; `materialize` blocks it.
+//! 2. **Fixing it lands it.** Give the old assertion an end date so the derived
+//!    interval no longer overlaps it; the next round lands, and the queue row clears.
+//! 3. **Accepting it lands it.** A human says both sides are correct; after
+//!    `accepted` the derivation lands as usual and the row stays without reopening.
+//! 4. **Derivations that collide with each other aggregate by rule pair.** Two CEOs
+//!    derive two mutually exclusive `works_at` facts, producing one `rules_disagree`
+//!    row in `ontology_defects`; neither derivation lands.
 //!
-//! 没有 `UTOPIA_DATABASE_URL` 时跳过而不是失败。自建自拆，绝不碰已有的库。
+//! Skips rather than fails when `UTOPIA_DATABASE_URL` is unset. Builds and tears
+//! down its own data; never touches an existing database.
 
 use sqlx::PgPool;
 use utopia_store::reasoning;
@@ -180,11 +186,11 @@ async fn a_contradiction_points_upstream() -> anyhow::Result<()> {
     let f = seed(&pool).await?;
 
     let run = async {
-        // Mira works_at Globex（没写结束日期）；Mira ceo_of Acme 自 2024 起
+        // Mira works_at Globex (no end date); Mira ceo_of Acme since 2024
         let old = asserted(&pool, &f, f.mira, f.works_at, f.globex, Some("2020-01-01")).await?;
         let ceo = asserted(&pool, &f, f.mira, f.ceo_of, f.acme, Some("2024-01-01")).await?;
 
-        // 1. 派生不落地，队列里有一行
+        // 1. The derivation does not land; a row appears in the queue
         let m = reasoning::materialize(&pool, f.kb).await?;
         assert_eq!(m.derived, 1);
         assert_eq!(
@@ -215,7 +221,7 @@ async fn a_contradiction_points_upstream() -> anyhow::Result<()> {
                 .await?;
         assert_eq!(right, ceo, "right is the last premise");
 
-        // Review 给的线索：旧断言没写结束日期、派生起得更晚 → stale
+        // Hint given by review: the old assertion has no end date and the derivation starts later -> stale
         let page = reasoning::open_violations(&pool, f.kb, 50, 0).await?;
         let card = page
             .iter()
@@ -224,8 +230,9 @@ async fn a_contradiction_points_upstream() -> anyhow::Result<()> {
         assert_eq!(card.hint.as_deref(), Some("stale"));
         assert_eq!(card.detail["subject"], "Mira");
 
-        // 争议在它坐的地方可见（0017 §3）：面板行挂 contested，图上有一条幽灵边，
-        // 「没落地的」一档有一行，它的证明链读得出前提
+        // The dispute is visible where it sits (0017 §3): the panel row carries
+        // contested, there's a ghost edge on the graph, a row on the "did not land"
+        // shelf, and its proof chain reads back the premise
         let (_, facts) =
             utopia_store::graph::entity_detail(&pool, f.kb, f.mira, None, None).await?;
         let hit = facts
@@ -269,11 +276,11 @@ async fn a_contradiction_points_upstream() -> anyhow::Result<()> {
         assert_eq!(steps.len(), 1);
         assert_eq!(steps[0].fact_id, ceo);
 
-        // 重跑幂等：还是那一行
+        // Rerunning is idempotent: still the same row
         reasoning::run(&pool, f.kb).await?;
         assert_eq!(open_contradictions(&pool, &f).await?.len(), 1);
 
-        // 2. 修了就落：给旧断言一个结束日期，区间不再重叠
+        // 2. Fixing it lands it: give the old assertion an end date, intervals no longer overlap
         sqlx::query(
             "UPDATE facts SET valid_to = '2023-06-30'::timestamptz, valid_to_precision = 'day'
               WHERE id = $1",
@@ -294,7 +301,7 @@ async fn a_contradiction_points_upstream() -> anyhow::Result<()> {
             "the queue row clears with the contradiction"
         );
 
-        // 3. 认可就落：把结束日期拿掉，矛盾回来；人说两边都对，派生照常落地
+        // 3. Accepting it lands it: remove the end date, the contradiction returns; a human says both sides are correct, the derivation lands as usual
         sqlx::query("UPDATE facts SET valid_to = NULL, valid_to_precision = NULL WHERE id = $1")
             .bind(old)
             .execute(&pool)
@@ -316,8 +323,10 @@ async fn a_contradiction_points_upstream() -> anyhow::Result<()> {
             "but the accepted row stays resolved and nothing new is opened"
         );
 
-        // 4. 派生之间互撞：先把旧断言闭合掉，让断言不再参与；再来一个 ceo_of Initech，
-        //    两条 works_at 由同一条规则推出、互斥——按规则对报一次，两条都不落
+        // 4. Derivations colliding with each other: first close the old assertion so
+        //    it no longer participates; then add another ceo_of Initech — two
+        //    mutually exclusive works_at facts derived by the same rule — reported
+        //    once per rule pair, neither lands
         sqlx::query(
             "UPDATE facts SET valid_to = '2023-06-30'::timestamptz, valid_to_precision = 'day'
               WHERE id = $1",
@@ -356,7 +365,7 @@ async fn a_contradiction_points_upstream() -> anyhow::Result<()> {
         assert_eq!(card.subject_label.as_deref(), Some("CEO of"));
         assert_eq!(card.other_label.as_deref(), Some("CEO of"));
 
-        // 撤掉第二个 ceo：规则对的那一行清掉，第一条派生重新落地
+        // Retract the second ceo: the rule-pair row clears and the first derivation lands again
         sqlx::query("UPDATE facts SET invalidated_at = now() WHERE id = $1")
             .bind(ceo2)
             .execute(&pool)

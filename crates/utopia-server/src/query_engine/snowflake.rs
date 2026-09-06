@@ -1,8 +1,9 @@
-//! Snowflake SQL API v2（`/api/v2/statements`）。同步提交（`async=false`）拿不完的
-//! 语句回 202，沿 statementHandle 轮询。值全是字符串，按 rowType 还原数与布尔。
+//! Snowflake SQL API v2 (`/api/v2/statements`). A synchronous submission (`async=false`) that can't
+//! finish in time comes back 202, and is then polled by statementHandle. Values are all strings,
+//! restored to numbers/booleans using rowType.
 //!
-//! 只收令牌，不收密码：programmatic access token 或 OAuth。密钥对 JWT 要本地签名，
-//! 这一版不做——见 `conn.rs`。
+//! Accepts only tokens, not passwords: a programmatic access token or OAuth. Key-pair JWT would need
+//! local signing, which this version doesn't do — see `conn.rs`.
 
 use super::conn::SnowflakeConn;
 use super::{
@@ -76,7 +77,7 @@ impl SnowflakeEngine {
             .send()
             .await?;
         let started = Instant::now();
-        // 202 = 还在跑；其余非 2xx 的 body 里带 message
+        // 202 = still running; any other non-2xx response carries a message in the body
         while http.status() == StatusCode::ACCEPTED {
             let partial: StatementResponse = http.json().await?;
             let handle = partial.handle.ok_or_else(|| {
@@ -105,7 +106,7 @@ impl SnowflakeEngine {
         }
         let resp: StatementResponse = http.json().await?;
         if let (Some(code), Some(message)) = (&resp.code, &resp.message) {
-            // 2xx 里也可能带业务错误码；090001 是 "statement executed successfully"
+            // Even a 2xx can carry a business error code; 090001 is "statement executed successfully"
             if code != "090001" && resp.meta.is_none() {
                 anyhow::bail!("Snowflake {code}: {message}");
             }

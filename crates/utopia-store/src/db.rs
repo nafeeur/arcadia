@@ -2,28 +2,33 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::time::Duration;
 
-/// 连接池上限的缺省。
+/// Default connection pool cap.
 ///
-/// **它不再与 worker 并发相等**（worker 缺省已是 64，见迁移 0011），这是有意的：
-/// 后台任务大部分时间在等模型应答，那段时间既不占连接、也被按模型的信号量压在
-/// 十来个以内。池子要覆盖的是**真在干活**的那些——每块的 epoch 检查、向量检索、
-/// 未匹配统计这类短查询，它们会成串涌来。
+/// **It is no longer equal to worker concurrency** (the worker default is already 64, see
+/// migration 0011) — deliberately: background jobs spend most of their time waiting on model
+/// responses, and during that wait they hold no connection and are throttled to around a
+/// dozen by the per-model semaphore anyway. What the pool needs to cover is the work that's
+/// **actually running** — the short queries like per-chunk epoch checks, vector retrieval,
+/// unmatched-count tallies — which arrive in bursts.
 ///
-/// 曾经写死 10，而 worker 默认 32——三倍超发，撞上来会先是请求变慢再是超时，
-/// 而不是任何一处报错说"池子不够"。所以这个数的判据是"同时在跑的短查询有多少"，
-/// 不是"有多少个任务槽位"；worker 再往上提时该重量的是前者。
+/// It used to be hardcoded to 10 while the worker default was 32 — a 3x oversubscription that,
+/// under load, shows up first as slow requests and then as timeouts, never as an error saying
+/// "pool exhausted". So the number this is sized against is "how many short queries are
+/// running concurrently", not "how many task slots exist"; when raising worker concurrency,
+/// this is the one that needs to scale with it.
 const DEFAULT_MAX_CONNECTIONS: u32 = 32;
 
 pub async fn connect(database_url: &str, max_connections: Option<u32>) -> anyhow::Result<PgPool> {
     let max = max_connections.unwrap_or(DEFAULT_MAX_CONNECTIONS).max(2);
     let pool = PgPoolOptions::new()
         .max_connections(max)
-        // 取不到连接时早点响亮地失败，而不是把请求悬在默认的 30 秒上——
-        // 池子配小了要看得出来是池子的问题
+        // Fail loudly early when a connection can't be acquired, rather than leaving the
+        // request hanging on the default 30 seconds — an undersized pool should be obviously
+        // the pool's fault
         .acquire_timeout(Duration::from_secs(10))
         .connect(database_url)
         .await?;
-    tracing::info!(max_connections = max, "数据库连接池已建立");
+    tracing::info!(max_connections = max, "database connection pool established");
     Ok(pool)
 }
 

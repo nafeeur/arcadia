@@ -1,28 +1,31 @@
-//! BlobStore：原始文件字节的存取接缝。
+//! BlobStore: the read/write seam for raw file bytes.
 //!
-//! 内容寻址——key 就是文件内容的 sha256，接口里没有"路径"概念：本地是分桶前的
-//! 平铺目录、对象存储是 object key，任何 KV 都能实现。幂等、去重、不可变
-//! （内容变了指纹就变，旧版永不覆盖——"版本回放有料"的物质基础）全部由
-//! "内容即地址"免费获得。
+//! Content-addressed — the key is the sha256 of the file's content, so the interface has no
+//! notion of a "path": locally it's a flat pre-bucketing directory, in object storage it's the
+//! object key, and any KV store can implement it. Idempotency, dedup and immutability (the
+//! fingerprint changes when the content does, and an old version is never overwritten — the
+//! material basis for "replay has something to replay") all come free from "content is the
+//! address".
 //!
-//! 现阶段唯一实现是本地磁盘（data/files/{sha256}）。将来接对象存储/网盘
-//! （P5 连接器、多实例部署共享存储）只需新增实现，摄入/上传/解析/回放的
-//! 调用方一行不改。配置入口 UTOPIA_BLOB_BACKEND 预留，当前仅接受 "local"。
+//! The only implementation today is local disk (data/files/{sha256}). Wiring up object
+//! storage/network drives later (P5 connectors, shared storage across multiple instances) only
+//! needs a new implementation — callers of ingest/upload/parse/replay don't change a line. The
+//! `UTOPIA_BLOB_BACKEND` config knob is reserved for this; it currently only accepts "local".
 
 use std::path::PathBuf;
 
 #[async_trait::async_trait]
 pub trait BlobStore: Send + Sync {
-    /// 幂等写入：同指纹已存在即跳过。
+    /// Idempotent write: skipped if the same fingerprint already exists.
     async fn put(&self, sha256: &str, bytes: &[u8]) -> anyhow::Result<()>;
     async fn get(&self, sha256: &str) -> anyhow::Result<Vec<u8>>;
-    #[allow(dead_code)] // 接口完整性：回放/GC 路径的将来消费者
+    #[allow(dead_code)] // Interface completeness: for future consumers on the replay/GC path
     async fn exists(&self, sha256: &str) -> anyhow::Result<bool>;
-    /// 真删（#268 下半）：只在库里确认没人再引用这份指纹之后调用。幂等：不存在也算成功
+    /// Actual deletion (#268, second half): only call once the store confirms nothing references this fingerprint anymore. Idempotent: not existing also counts as success.
     async fn delete(&self, sha256: &str) -> anyhow::Result<()>;
 }
 
-/// 本地磁盘实现：`{dir}/{sha256}` 平铺存放（与历史行为逐字节一致）。
+/// Local-disk implementation: stored flat as `{dir}/{sha256}` (byte-for-byte matching historical behavior).
 pub struct LocalBlobStore {
     dir: PathBuf,
 }

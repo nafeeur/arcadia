@@ -1,8 +1,9 @@
-//! 请求来源捕获：把客户端 IP 与 User-Agent 放进 task-local，供审计写入时读取。
+//! Request-origin capture: puts the client IP and User-Agent into a task-local, for audit writes to read.
 //!
-//! 走 task-local 而非逐层传参，是因为 `audit::record` 有二十多个调用点，
-//! 它们分散在各个业务 handler 里；为了两个与业务无关的字段改遍所有签名，
-//! 只会让每个调用点都记得住这件与它无关的事。
+//! This goes through a task-local rather than threading parameters through every layer because
+//! `audit::record` has twenty-odd call sites scattered across various business handlers;
+//! changing every signature for two fields unrelated to the business logic would just force
+//! every call site to remember something that isn't its concern.
 
 use axum::extract::ConnectInfo;
 use axum::extract::Request;
@@ -12,11 +13,14 @@ use axum::response::Response;
 use std::net::SocketAddr;
 use utopia_store::audit::{ClientContext, CLIENT};
 
-/// 反向代理转发的原始客户端地址。取 X-Forwarded-For 的第一段（最靠近客户端的
-/// 那一跳），其次 X-Real-IP，都没有则用实际的 TCP 对端地址。
+/// The original client address as forwarded by a reverse proxy. Takes the first segment of
+/// X-Forwarded-For (the hop closest to the client), then X-Real-IP, and falls back to the
+/// actual TCP peer address if neither is present.
 ///
-/// 这两个头是客户端可伪造的，直连部署时不该轻信；但直连时它们本来就不存在，
-/// 落回 TCP 对端地址即为真值。部署在代理之后时，代理应当覆写而非追加它们。
+/// Both headers are client-forgeable and shouldn't be trusted on a direct deployment; but on a
+/// direct deployment they simply won't be present, and falling back to the TCP peer address is
+/// then the ground truth. When deployed behind a proxy, the proxy should overwrite rather than
+/// append to these headers.
 fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>) -> Option<String> {
     if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         if let Some(first) = xff
@@ -37,7 +41,7 @@ fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>) -> Option<String> {
     peer.map(|a| a.ip().to_string())
 }
 
-/// User-Agent 截断到 256 字节：它由客户端完全控制，不该让一条请求头把台账撑爆。
+/// User-Agent is truncated to 256 bytes: it's entirely client-controlled, and one request header shouldn't be able to bloat the audit ledger.
 fn user_agent(headers: &HeaderMap) -> Option<String> {
     headers
         .get(axum::http::header::USER_AGENT)
@@ -109,15 +113,16 @@ mod tests {
 
     #[test]
     fn user_agent_is_capped_at_256_bytes() {
-        let long = "Mozilla/5.0 ".repeat(50); // 600 字节，远超上限
+        let long = "Mozilla/5.0 ".repeat(50); // 600 bytes, well over the cap
         let h = headers(&[("user-agent", long.as_str())]);
         let got = user_agent(&h).unwrap();
         assert_eq!(got.len(), 256);
-        assert!(long.starts_with(&got), "截断后仍是原串的前缀");
+        assert!(long.starts_with(&got), "still a prefix of the original string after truncation");
     }
 
-    /// HeaderValue::to_str 只接受可见 ASCII，非 ASCII 的 UA 读不出来——
-    /// 记空好过记一段乱码。这也是上面按字节截断安全的原因：能读出来的一定是 ASCII。
+    /// HeaderValue::to_str only accepts visible ASCII, so a non-ASCII UA can't be read out at
+    /// all — recording nothing beats recording garbled bytes. This is also why truncating by
+    /// byte offset above is safe: whatever can be read out is guaranteed to be ASCII.
     #[test]
     fn non_ascii_user_agent_is_dropped_rather_than_mangled() {
         let mut h = HeaderMap::new();

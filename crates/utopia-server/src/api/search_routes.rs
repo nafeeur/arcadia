@@ -16,8 +16,8 @@ pub struct SearchReq {
     pub q: String,
     #[serde(default)]
     pub top_k: Option<usize>,
-    /// 记录轴（0019）：按**那一刻库里有的东西**检索。YYYY-MM-DD 或 RFC3339。
-    /// 命中的是当时活着的块、当时还没被删的文档
+    /// Record axis (0019): search **what the base had at that moment**. YYYY-MM-DD or RFC3339.
+    /// Hits are chunks alive then, in documents not yet deleted then.
     #[serde(default)]
     pub as_of: Option<String>,
 }

@@ -1,15 +1,20 @@
-// KB 事件流订阅：收到事件只做 react-query 失效重取（事件不带业务数据，天然幂等）。
-// EventSource 断线自动重连；替代 Library/Review 的轮询。
+// KB event stream subscription: receiving an event only triggers a react-query
+// invalidate-and-refetch (events carry no business data, so this is naturally
+// idempotent). EventSource auto-reconnects on disconnect; replaces polling in
+// Library/Review.
 //
-// **失效是合并着做的。** 一篇文档抽取时每落一条事实就发一个 graph 事件，
-// 从前每个事件各失效一次，图谱页在那几秒里把 overview 重取了十几遍——
-// 每次都是同一张图，最后一次才算数。所以事件只把 key 记下来，停顿一小会
-// 再一次性失效：一阵事件只换来一次重取，最后那次一定包含之前所有的变化。
-// 幂等性没变，只是把「每条都刷」变成「刷最后一条」。
+// **Invalidation is coalesced.** Extracting a document fires a graph event for
+// every fact it drops — invalidating once per event used to make the graph
+// page refetch overview a dozen-plus times in those few seconds, each time
+// getting the same graph, with only the last one mattering. So events just
+// record the key, wait a brief settle period, then invalidate once: a burst
+// of events costs one refetch, and that last refetch is guaranteed to include
+// every change that came before it. Idempotence is unchanged — this just
+// turns "refresh on every event" into "refresh on the last one".
 import { useEffect } from "react";
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
 
-/** 一阵事件之间的静默期。抽取落事实的间隔远小于它，人眼看不出这点延迟 */
+/** Quiet period between a burst of events. Far shorter than the gap between facts landing during extraction, so this delay is imperceptible */
 const SETTLE_MS = 300;
 
 export function useKbEvents(kbId: string | undefined) {
@@ -33,14 +38,14 @@ export function useKbEvents(kbId: string | undefined) {
     const es = new EventSource(`/api/v1/kbs/${kbId}/events`);
     es.addEventListener("document", () => invalidate(["documents", kbId], ["graph"], ["arc-summary", kbId], ["arc-changes", kbId], ["arc-change", kbId], ["arc-impact", kbId], ["arc-traces", kbId], ["arc-trace", kbId]));
     es.addEventListener("graph", () => invalidate(["graph"], ["arc-summary", kbId], ["arc-impact", kbId]));
-    // 映射探索跑完发的也是 review：Pending 那一栏得跟着刷新
+    // A finished mapping-exploration run also emits review: the Pending tab needs to refresh along with it
     es.addEventListener("review", () => invalidate(["review", kbId], ["mappings", kbId], ["arc-changes", kbId], ["arc-change", kbId], ["arc-summary", kbId]));
-    // 一句记忆抽出了等人点头的事实（0015）：对话里那张确认卡跟着长出来
+    // A memory turn extracted a fact awaiting confirmation (0015): the confirmation card in the conversation grows in response
     es.addEventListener("pending", () => invalidate(["pending", kbId], ["review", kbId]));
     es.addEventListener("source", () => invalidate(["sources", kbId], ["documents", kbId]));
     return () => {
       es.close();
-      // 卸载时把攒着的刷掉而不是丢掉：换页回来看到的必须是新数据
+      // On unmount, flush what's pending instead of dropping it: navigating back must show fresh data
       if (timer !== null) {
         clearTimeout(timer);
         flush();

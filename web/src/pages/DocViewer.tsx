@@ -26,7 +26,7 @@ export function DocViewer() {
     queryKey: ["docDetail", docId],
     queryFn: () => api.documentDetail(docId),
   });
-  // 反向证据链：各分块抽出的事实（一次取整文档，按 chunk 分组）
+  // Reverse evidence chain: facts extracted per chunk (fetched for the whole document at once, then grouped by chunk)
   const extractions = useQuery({
     queryKey: ["docExtractions", docId],
     queryFn: () => api.documentExtractions(docId),
@@ -40,18 +40,18 @@ export function DocViewer() {
     return map;
   }, [extractions.data]);
 
-  // null = 自动定位：有引用跳转时翻到目标分块所在页
+  // null = auto-locate: when arriving via a citation link, jump to the page containing the target chunk
   const [page, setPage] = useState<number | null>(null);
   useEffect(() => setPage(null), [chunk, docId]);
 
   const highlightRef = useRef<HTMLDivElement>(null);
-  // 引用跳转：滚动到目标分块点亮一下，稍候淡出恢复普通状态（不常驻高亮）
+  // Citation link: scroll to the target chunk and flash it, fading back to normal after a moment (not a persistent highlight)
   const [flash, setFlash] = useState(false);
   useEffect(() => {
     if (detail.data && highlightRef.current) {
       highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
       setFlash(true);
-      // 平滑滚动本身耗几百毫秒，点亮窗口要留足滚动后的可视时间
+      // Smooth scrolling itself takes a few hundred ms, so give the flash window enough visible time after it settles
       const t = setTimeout(() => setFlash(false), 2600);
       return () => clearTimeout(t);
     }

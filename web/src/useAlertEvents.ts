@@ -1,7 +1,8 @@
-// 告警事件订阅。**全局，不按库**——顶栏角标是跨库的，而系统级告警根本没有库。
+// Alert event subscription. **Global, not per-KB** — the header badge spans knowledge bases, and system-level alerts have no KB at all.
 //
-// 服务端推的那条不带任何数据也不判权限（见 alerts_routes::stream）：收到就重取，
-// 谁能看见什么由列表查询说了算。所以这里也不需要知道当前是哪个库。
+// The server push carries no data and checks no permissions (see alerts_routes::stream):
+// on receipt we just refetch, and the list query alone decides what's visible. So this
+// doesn't need to know which KB is current either.
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 

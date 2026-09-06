@@ -6,8 +6,8 @@ import test from "node:test";
 import { createServer } from "vite";
 
 // From web/ (no changes to app dependencies or lockfile):
-// npm install --prefix /tmp/utopia-rss-browser-test --no-audit --no-fund --package-lock=false playwright-core@1.58.2
-// RSS_PLAYWRIGHT_PATH=/tmp/utopia-rss-browser-test/node_modules/playwright-core RSS_CHROMIUM_PATH=/home/jik/.cache/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-linux64/chrome-headless-shell node --test tests/rss-default.test.mjs
+// npm install --prefix /tmp/arcadia-rss-browser-test --no-audit --no-fund --package-lock=false playwright-core@1.58.2
+// RSS_PLAYWRIGHT_PATH=/tmp/arcadia-rss-browser-test/node_modules/playwright-core RSS_CHROMIUM_PATH=/home/jik/.cache/ms-playwright/chromium_headless_shell-1223/chrome-headless-shell-linux64/chrome-headless-shell node --test tests/rss-default.test.mjs
 // Point RSS_CHROMIUM_PATH at an installed Chromium on other machines.
 // Regression probes: prefix the test command with RSS_FORM_MUTATION=wrong-default
 // or RSS_FORM_MUTATION=disconnected-payload; each MUST fail. Mutations exist only

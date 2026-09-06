@@ -1,10 +1,11 @@
-// 顶栏告警（0005）：铃铛 + 未读角标 + 弹出面板。
+// Header-bar alerts (0005): bell + unread badge + popover panel.
 //
-// **弹窗不是页面**：告警是"顺手瞄一眼"的东西，不是一个要专门去逛的地方。
-// 做成页面会逼人离开手头的事，而离开的代价就是没人去看。
+// **A popover, not a page**: alerts are something you glance at in passing,
+// not a place you go to deliberately. Making it a page would force people to
+// leave what they're doing, and the cost of that is that nobody looks.
 //
-// 一条告警 = 一次故障，写完不再变，没有"已解决"。
-// 「已读」逐人——一个人读过不代表别人也该从未读里消失。
+// One alert = one incident, written once and never changed — there is no "resolved".
+// "Read" is per-person — one person reading it shouldn't clear it from anyone else's unread count.
 import { type Ref, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Search, X } from "lucide-react";
@@ -25,13 +26,13 @@ import { usePopoverFlip } from "../ui/popoverFlip";
 
 const PAGE = 8;
 
-/** 明细里给人看的那一行：对象名 — 报错原文 */
+/** The line shown per detail: object name — raw error text */
 function line(d: AlertGroup["lines"][number]): string | null {
   const parts = [d.name ?? d.job, d.error].filter(Boolean);
   return parts.length ? parts.join(" — ") : null;
 }
 
-/** 哪些告警带「再跑一遍」：故障修好之后（充值、改端点）任务不会自己回来的那几种 */
+/** Which alert kinds get a "run again" action: the ones where jobs don't come back on their own once the underlying issue (top up credit, fix the endpoint) is fixed */
 const REQUEUE_KINDS = new Set(["llm.out_of_credit", "llm.unreachable"]);
 
 function AlertRow({
@@ -45,19 +46,22 @@ function AlertRow({
   onRequeue: (g: AlertGroup) => void;
   requeuing: boolean;
 }) {
-  // 没见过的 kind 也得显示得出来：新告警源上线时前端可能还没跟上，
-  // 而"有条告警但我不认识它"远好过"什么都不显示"
+  // An unrecognized kind still has to render: a new alert source can ship
+  // before the frontend catches up, and "an alert I don't recognize" beats
+  // "nothing shown at all"
   const worded = S.alerts.kinds[g.kind];
   const lines = g.lines.map(line).filter((l): l is string => !!l);
-  // count 数的是整组，lines 只带回前几条——差额是"还有 N 条"
+  // `count` is the whole group; `lines` only carries the first few back — the
+  // difference is "N more"
   const rest = g.count - lines.length;
   return (
-    // div 而不是 button：行里还有一个动作按钮，按钮套按钮是无效 HTML
+    // div, not button: the row already has an action button inside it, and a button nested in a button is invalid HTML
     <div
       role="button"
       tabIndex={0}
-      // **点击才算读过**，不是划过。鼠标经过一列告警不代表看过它们，
-      // 而已读一旦落下就再也不会自己回来。点一下把这一组整个标掉
+      // **Only a click counts as read**, not a hover. Moving the mouse over a
+      // row of alerts doesn't mean they were seen, and once marked read they
+      // never come back on their own. One click marks the whole group.
       onClick={() => {
         if (g.unread > 0) onRead(g);
       }}
@@ -66,8 +70,9 @@ function AlertRow({
       }}
       className="u-row-shell flex w-full cursor-pointer gap-3 border-b border-line px-4 py-3 text-left last:border-b-0"
     >
-      {/* 未读就是一个红点。整行描边或底色会让面板在告警多时变成一片红，
-          而红点只占它该占的那一点地方，读过就没了 */}
+      {/* Unread is just a red dot. Outlining or shading the whole row would turn
+          the panel into a wall of red when there are many alerts, while a dot
+          only takes the small amount of space it deserves, and disappears once read */}
       <span
         className={cn(
           "mt-[7px] h-1.5 w-1.5 rounded-full shrink-0",
@@ -106,13 +111,15 @@ function AlertRow({
             )}
           </ul>
         )}
-        {/* 时间取组里最新的那一次 */}
+        {/* Timestamp is the latest occurrence in the group */}
         <p className="u-num mt-2 text-fine text-ink-3">
           {new Date(g.latest_at).toLocaleString()}
         </p>
-        {/* 修好之后接着跑：把这次故障窗口里失败的任务放回队列（#216）。
-            余额耗尽是唯一一种「人做完一件具体的事就想让活继续」的失败，
-            动作长在告警上，闭环就在这里，不必另建一个队列页 */}
+        {/* Resume once fixed: puts jobs that failed during this incident window back
+            on the queue (#216). Running out of credit is the one failure kind where
+            someone does a concrete thing (tops up, fixes the endpoint) and then wants
+            the work to continue — the action belongs on the alert, closing the loop
+            here instead of needing a separate queue page */}
         {REQUEUE_KINDS.has(g.kind) && (
           <Button variant="secondary" size="sm" className="mt-2"
             type="button"
@@ -135,8 +142,9 @@ function Panel({ panelRef }: { panelRef: Ref<HTMLDivElement> }) {
   const [page, setPage] = useState(0);
   const qc = useQueryClient();
 
-  // 搜索后回第一页：停在第 4 页看一个只有 2 页的结果，
-  // 面板会显示空白，而人会读成"没有告警"
+  // Reset to page 1 after a search: staying on page 4 of a result that now
+  // only has 2 pages would render the panel blank, and people would read
+  // that as "no alerts"
   useEffect(() => {
     setPage(0);
   }, [q]);
@@ -144,7 +152,7 @@ function Panel({ panelRef }: { panelRef: Ref<HTMLDivElement> }) {
   const list = useQuery({
     queryKey: ["alerts", "list", q, page],
     queryFn: () => api.alerts({ q, limit: PAGE, offset: page * PAGE }),
-    // 翻页时留着上一页，免得面板高度塌一下再弹回来
+    // Keep the previous page while paging, so the panel height doesn't collapse and then pop back
     placeholderData: (prev) => prev,
   });
 
@@ -162,7 +170,7 @@ function Panel({ panelRef }: { panelRef: Ref<HTMLDivElement> }) {
     mutationFn: () => api.alertsReadAll(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["alerts"] }),
   });
-  // 时间窗从这组最早那次故障起——之前失败的不是这次的事
+  // The time window starts at this group's earliest occurrence — failures before that aren't part of this incident
   const requeue = useMutation({
     mutationFn: (g: AlertGroup) =>
       api.requeueJobs(g.kb_id, { failed_since: g.earliest_at }),
@@ -177,7 +185,7 @@ function Panel({ panelRef }: { panelRef: Ref<HTMLDivElement> }) {
   const total = list.data?.total ?? 0;
 
   return (
-    // top-0 而不是 top-9：面板要从铃铛**原位**长出来，右上角对齐
+    // top-0, not top-9: the panel needs to grow from the bell's **own position**, aligned to the top-right corner
     <div
       ref={panelRef}
       className="u-menu-glass absolute right-0 top-0 w-[420px] rounded-xl shadow-2xl z-50 overflow-hidden"
@@ -188,7 +196,7 @@ function Panel({ panelRef }: { panelRef: Ref<HTMLDivElement> }) {
         </span>
       </div>
 
-      {/* 跟文库的过滤框同一套：input-dark + 左侧图标 + 有值时右侧清除、Esc 清空 */}
+      {/* Same treatment as the library's filter box: input-dark + left icon + a clear button on the right when there's a value, Esc to clear */}
       <div className="px-4 py-3 border-b border-line">
         <div className="relative">
           <Search
@@ -236,7 +244,7 @@ function Panel({ panelRef }: { panelRef: Ref<HTMLDivElement> }) {
         )}
       </div>
 
-      {/* 底栏：整张列表级的动作跟翻页放一起，离光标最远 */}
+      {/* Footer: list-wide actions sit next to pagination, farthest from the cursor */}
       {groups.length > 0 && (
         <div className="flex items-center gap-3 px-4 py-2 border-t border-line">
           {groups.some((g) => g.unread > 0) && (
@@ -258,13 +266,13 @@ function Panel({ panelRef }: { panelRef: Ref<HTMLDivElement> }) {
 }
 
 export function AlertBell() {
-  // 跟用户菜单同一份原地变形：两个面板紧挨着，动画差一点点来回点两下就看得出来
+  // Same in-place-morph animation as the user menu: the two panels sit right next to each other, so even a slight animation mismatch shows up after a couple of clicks
   const { open, setOpen, close, rootRef, anchorRef, panelRef } =
     usePopoverFlip<HTMLButtonElement, HTMLDivElement>();
   const unread = useQuery({
     queryKey: ["alerts", "unread"],
     queryFn: () => api.alertsUnread(),
-    // 推送是主路，这个只是断流时的兜底
+    // Push is the primary path; this is just a fallback for when the stream drops
     refetchInterval: 120_000,
   });
   const n = unread.data?.unread ?? 0;
@@ -280,8 +288,9 @@ export function AlertBell() {
         onClick={() => (open ? close() : setOpen(true))}
       >
         <Bell size={15} />
-        {/* 角标也是个点，不是数字。"有事没看"是二元的，具体几条打开就知道；
-            数字还会随重试一路往上跳，跳到三位数就把铃铛撑变形了 */}
+        {/* The badge is also just a dot, not a number. "Something unread" is
+            binary — opening it tells you how many. A number would also keep
+            climbing with retries, and three digits would distort the bell shape */}
         {n > 0 && (
           <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-danger" />
         )}
@@ -289,14 +298,17 @@ export function AlertBell() {
       {open && (
         <>
           <Panel panelRef={panelRef} />
-          {/* 关闭按钮是面板的**兄弟**，不是它的孩子：放里面的话 `right-0 top-0`
-              相对的是面板的内边距盒，而 u-menu-glass 有一条 0.667px 的发丝边框
-              （DPR 1.5 上的一个物理像素），永远差那么一点。放在这里，定位祖先
-              就是裹着铃铛的这个 div，跟铃铛同一个盒子——重合是构造出来的。
+          {/* The close button is the panel's **sibling**, not its child: inside
+              the panel, `right-0 top-0` would be relative to the panel's own
+              padding box, and u-menu-glass has a 0.667px hairline border (one
+              physical pixel at DPR 1.5), so it would always be off by that much.
+              Placed here, the positioning ancestor is this div wrapping the bell —
+              the same box as the bell, so the alignment is exact by construction.
 
-              光标点开面板之后正停在这个位置，所以这儿必须是"再点一下关掉"。
-              放"全部标为已读"等于把误触做成默认动作，而它一下清掉的是
-              所有库的所有告警 */}
+              The cursor is sitting right at this spot after opening the panel, so
+              this has to be "click again to close". Putting "mark all read" here
+              instead would make a misclick the default action, and it clears every
+              alert in every knowledge base at once */}
           <IconButton
             size="sm"
             label={S.alerts.close}

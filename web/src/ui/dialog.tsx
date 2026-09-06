@@ -1,6 +1,8 @@
-/* 对话框：Radix Dialog 打底（焦点困住、Esc、遮罩点击、aria 全在里面），
-   皮是 styles.css 的 u-modal-*。近实底而不是玻璃：确认框要人读一句话然后做一个
-   不可逆的决定，下层正文透上来是干扰（见 .u-modal-panel 上的说明）。 */
+/* Dialog: Radix Dialog underneath (focus trap, Esc, overlay click, all the
+   aria wiring). Skin is styles.css's u-modal-*. Near-opaque rather than glass:
+   a confirmation dialog needs someone to read one sentence and make an
+   irreversible decision, and content showing through from below is a
+   distraction (see the note on .u-modal-panel). */
 import { Dialog as RadixDialog } from "radix-ui";
 import { X } from "lucide-react";
 import { useState } from "react";
@@ -20,13 +22,13 @@ export function Dialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: ReactNode;
-  /** 标题下的一句说明；也是读屏器念的 description */
+  /** One line of description under the title; also the description a screen reader announces */
   description?: ReactNode;
-  /** 右上角关闭按钮的无障碍名称——页面从 S 里取，组件不认识语言 */
+  /** Accessible name for the top-right close button — the page pulls it from S, this component doesn't know the language */
   closeLabel: string;
   width?: "sm" | "md" | "lg";
   children?: ReactNode;
-  /** 右下角的按钮区。危险确认用 DangerConfirm，不在这里拼 */
+  /** Bottom-right button area. Use DangerConfirm for destructive confirmations, not assembled here */
   footer?: ReactNode;
 }) {
   const w = { sm: "w-96", md: "w-[32rem]", lg: "w-[44rem]" }[width];
@@ -50,7 +52,7 @@ export function Dialog({
                     {description}
                   </RadixDialog.Description>
                 ) : (
-                  // Radix 没有 description 会在控制台警告；空的也要有一个
+                  // Radix warns in the console without a description; an empty one still counts
                   <RadixDialog.Description className="sr-only">
                     {typeof title === "string" ? title : ""}
                   </RadixDialog.Description>
@@ -73,9 +75,11 @@ export function Dialog({
   );
 }
 
-/* ---------- DangerConfirm（危险操作确认：可要求输入指定文本解锁） ----------
-   和从前一样的接口，皮换成 Dialog。**总是挂载着**（open 恒真）：调用方用
-   条件渲染控制它出现，这跟 Dialog 的 open 属性一样有效，而且旧代码不用改。 */
+/* ---------- DangerConfirm (destructive-action confirmation: can require typing specific text to unlock) ----------
+   Same interface as before, skin swapped for Dialog. **Always mounted** (open
+   is always true): callers use conditional rendering to control whether it
+   appears, which works just as well as Dialog's open prop, and old call sites
+   don't need to change. */
 export function DangerConfirm({
   title,
   hint,
@@ -88,7 +92,7 @@ export function DangerConfirm({
 }: {
   title: string;
   hint: string;
-  /** 要求逐字输入的解锁文本（如资源名称）；缺省则直接可确认 */
+  /** Text that must be typed exactly to unlock (e.g. a resource name); omit to allow confirming directly */
   requireText?: string;
   confirmLabel: string;
   cancelLabel: string;
