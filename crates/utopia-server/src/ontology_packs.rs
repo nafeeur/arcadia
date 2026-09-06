@@ -1,30 +1,34 @@
-//! 预置本体包：建库时的起点。
+//! Prebuilt ontology packs: the starting point when creating a KB.
 //!
-//! 建库时**什么都不铺**：0009 删掉内置实体类、0010 与 `#125` 删掉种子关系、
-//! 0011 把 `mapped_to` 搬去语义层之后，播种机制整个退场。所以这些包不是
-//! 「补充」而是本体的**全部来源**。
+//! Creating a KB **lays down nothing by default**: after 0009 removed the built-in entity
+//! classes, 0010 and `#125` removed the seed relations, and 0011 moved `mapped_to` to the
+//! semantic layer, the seeding mechanism was retired entirely. So these packs aren't a
+//! "supplement" — they're the ontology's **entire source**.
 //!
-//! 当初那十条种子关系一个类型签名都没有，而抽取提示词是支持签名的——
-//! `- buys_from (employee|team → *)`。没有签名，方向就只能靠散文描述，
-//! 而散文约束不了方向。schema.org 的 1521 个属性里 1488 个带
-//! domain + range，方向是**声明的**不是描述的。见 `docs/decisions/0008`。
+//! Those original ten seed relations had no type signature at all, while the extraction
+//! prompt does support signatures — `- buys_from (employee|team → *)`. Without a signature,
+//! direction can only be conveyed by prose, and prose can't constrain direction. Of
+//! schema.org's 1521 properties, 1488 carry domain + range: direction is **declared**, not
+//! described. See `docs/decisions/0008`.
 //!
-//! **文件内嵌进二进制**，不在运行时下载：README 承诺整套系统可以跑在完全离线的
-//! 内网环境，运行时抓取会让这句话失效。原文按 gzip 存放（1.7 MB → 316 KB），
-//! 解压在 [`bytes`]。
+//! **Files are embedded in the binary**, not downloaded at runtime: the README promises the
+//! whole system can run in a fully offline intranet environment, and fetching at runtime
+//! would break that promise. Source files are stored gzipped (1.7 MB → 316 KB), decompressed
+//! in [`bytes`].
 
 use utopia_core::{AppError, AppResult};
 
-/// 一个可选的预置本体。
+/// One optional prebuilt ontology.
 ///
-/// `classes` / `properties` 是**抓取当天数过的展示数字**，给建库界面用；
-/// 真正建了多少以导入返回的 plan 为准——投影只覆盖当下能消费的构造。
+/// `classes` / `properties` are **display numbers counted on the day they were fetched**,
+/// for the create-KB UI; how much actually gets built is governed by the plan the import
+/// returns — the projection only covers constructs consumable right now.
 pub struct Pack {
     pub id: &'static str,
     pub name: &'static str,
     pub summary: &'static str,
-    /// 传给 `owl_import` 的文件名。**格式靠扩展名判定**（`RdfFormat::detect`），
-    /// 所以这里必须保留真实后缀。
+    /// The filename passed to `owl_import`. **Format is determined by extension**
+    /// (`RdfFormat::detect`), so the real suffix must be preserved here.
     pub filename: &'static str,
     pub classes: u32,
     pub properties: u32,
@@ -83,7 +87,8 @@ pub fn get(id: &str) -> Option<&'static Pack> {
     PACKS.iter().find(|p| p.id == id)
 }
 
-/// 解压出原文。**每次调用都解一遍**——建库是低频动作，不值得为它常驻 1.7 MB。
+/// Decompresses the source. **Decompressed fresh on every call** — creating a KB is a
+/// low-frequency action, not worth keeping 1.7 MB resident for.
 pub fn bytes(pack: &Pack) -> AppResult<Vec<u8>> {
     use std::io::Read;
     let mut out = Vec::new();
@@ -97,8 +102,8 @@ pub fn bytes(pack: &Pack) -> AppResult<Vec<u8>> {
 mod tests {
     use super::*;
 
-    /// 每个包都能解压，且解出来的不是空文件。
-    /// `include_bytes!` 保证文件存在，但保证不了它是有效的 gzip。
+    /// Every pack decompresses, and what comes out isn't an empty file.
+    /// `include_bytes!` guarantees the file exists, but not that it's valid gzip.
     #[test]
     fn every_pack_decompresses() {
         for p in PACKS {
@@ -107,7 +112,8 @@ mod tests {
         }
     }
 
-    /// 文件名后缀决定格式判定，写错了整个包会被当成另一种语法送进解析器。
+    /// The filename suffix determines format detection; get it wrong and the whole pack
+    /// gets fed into the parser as the wrong syntax.
     #[test]
     fn filenames_carry_a_format_suffix() {
         for p in PACKS {

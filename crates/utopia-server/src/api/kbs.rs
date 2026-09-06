@@ -19,10 +19,11 @@ pub struct CreateKbReq {
     pub description: Option<String>,
     #[serde(default)]
     pub visibility: Option<String>,
-    /// 预置本体包的 id，按给定顺序装。空 = 只有十个种子。
+    /// IDs of preset ontology packs, installed in the given order. Empty = just the ten seed classes.
     ///
-    /// **顺序有意义**：第一个包的类会认领同名的种子类（它们没有 IRI），
-    /// 后面的包撞名时查对齐表。schema.org 放第一个，别的包才对得上。
+    /// **Order matters**: the first pack's classes claim the seed classes of the same name (they
+    /// have no IRI), and later packs check the alignment table on name clashes. Put schema.org
+    /// first so the other packs line up.
     #[serde(default)]
     pub ontology_packs: Vec<String>,
 }
@@ -32,19 +33,19 @@ pub struct UpdateKbReq {
     pub name: Option<String>,
     pub description: Option<String>,
     pub visibility: Option<String>,
-    /// 自动扩本体开关（缺省开；关掉不影响"留意"，只是变成你点一下的提案）
+    /// Auto-extend-ontology switch (default on; turning it off doesn't affect "noticing", it just becomes a proposal you click to accept)
     #[serde(default)]
     pub auto_extend_ontology: Option<bool>,
-    /// 本体语言（`en` | `zh`）：跟语料走，不跟界面走。见 docs/decisions/0004
+    /// Ontology language (`en` | `zh`): follows the corpus, not the UI. See docs/decisions/0004
     #[serde(default)]
     pub ontology_lang: Option<String>,
-    /// 物化推理开关（缺省关）。见 docs/decisions/0002 R1
+    /// Materialize-inferences switch (default off). See docs/decisions/0002 R1
     #[serde(default)]
     pub materialize_inferences: Option<bool>,
-    /// 多久重推一次（分钟）。事实持续在变，只靠手点会让派生一直是缺的
+    /// How often to rematerialize (minutes). Facts keep changing, and relying on manual clicks alone would leave derivations perpetually stale
     #[serde(default)]
     pub inference_interval_minutes: Option<i32>,
-    /// 抽取结束自动排一轮类型消解（缺省开）。见 docs/decisions/0016 C2
+    /// Automatically schedule a round of type resolution when extraction finishes (default on). See docs/decisions/0016 C2
     #[serde(default)]
     pub auto_type_resolution: Option<bool>,
 }

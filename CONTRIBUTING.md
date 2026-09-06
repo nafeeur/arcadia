@@ -1,4 +1,6 @@
-# Contributing to Arcadia
+# Contributing to Utopia
+
+[中文](CONTRIBUTING.zh-CN.md)
 
 Welcome. This file covers what is specific to this repository; general open-source etiquette is assumed.
 
@@ -32,7 +34,7 @@ Both branches are protected: pull request required, CI (`backend` and `web`) mus
 | Change | What to do |
 |---|---|
 | Bug fixes, docs, i18n strings, tests | Open a PR directly |
-| New features, dependency changes | Open an issue first and describe the use case |
+| New features, dependency changes | Open an [issue](https://github.com/deeplethe/utopia/issues) first and describe the use case |
 | Data model, ontology contract, public API | Discuss in an issue, then land an [ADR](docs/decisions/) before writing code |
 
 `docs/decisions/` is where this project's reasoning lives. An ADR records **why this and not that**, including the approaches that were tried and failed. For a change of any size, that document outlives the code.
@@ -83,7 +85,7 @@ cargo test --workspace
 
 **Don't collide migration numbers.** `migrations/` rolls forward by number. Check the latest number on `main` before opening a PR — two branches each writing an `0011_` has happened, and after the merge neither one runs.
 
-**UI strings go in i18n.** Add to `web/src/i18n/en.ts`; no hard-coded strings in components.
+**UI strings go in i18n.** Add to both `web/src/i18n/en.ts` and `zh.ts`; no hard-coded strings in components.
 
 **Comments explain why.** This repository comments densely and deliberately records the traps it fell into ("the first version used OR, and the Elon Musk article then produced a snapshot every 6KB"). Follow that. A comment restating what the code does will be asked to go.
 

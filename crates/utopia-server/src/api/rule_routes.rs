@@ -1,7 +1,7 @@
 //! CRUD for business rules (0021 / #277).
 //!
-//! **Writing a rule requires Editor**: it's part of the ontology — changing one rule changes derived
-//! conclusions across the whole base, the same weight of consequence as editing an axiom.
+//! **Writing a rule requires Editor**: it's part of the ontology — changing one rule once
+//! changes conclusions across the whole KB, the same order of magnitude as changing an axiom.
 
 use axum::extract::{Path, State};
 use axum::Json;
@@ -41,10 +41,10 @@ pub struct RulePatch {
     pub description: Option<String>,
     #[serde(default)]
     pub enabled: Option<bool>,
-    /// If given, replaces the whole set; if omitted, conditions are left untouched
+    /// If given, replaces the whole set; if not, conditions are left untouched
     #[serde(default)]
     pub conditions: Option<Vec<ConditionInput>>,
-    /// Conclusion is also replaced as a whole set: the three fields define each other, and changing only one would leave a half-updated state
+    /// The conclusion is also replaced as a whole: the three fields define each other, changing only one leaves a half-finished state
     #[serde(default)]
     pub conclusion: Option<String>,
     #[serde(default)]
@@ -155,7 +155,7 @@ pub async fn delete(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// Who a rule currently marks. Clicking that number in the UI opens this list.
+/// Who a rule currently flags. Clicking that number in the UI opens exactly this list.
 pub async fn matches(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -178,12 +178,11 @@ pub struct MatchQuery {
     pub per: Option<i64>,
 }
 
-/// Run right now and compute this rule's conclusions.
+/// Run right now, computing this rule's conclusions.
 ///
 /// **Doesn't wait for the next materialization cycle**: whoever wrote the rule wants to see
 /// what it derives immediately, and the cycle defaults to an hour. Goes through the same
-/// `materialize` — preview and the real run are the same path, so there's no separate copy
-/// of the logic that can drift.
+/// `materialize` — preview and the real thing share one path, so there's no separate copy of the logic to drift.
 pub async fn run_now(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,

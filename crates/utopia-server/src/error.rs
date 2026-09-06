@@ -17,7 +17,7 @@ pub type ApiResult<T> = Result<T, ApiErr>;
 
 impl IntoResponse for ApiErr {
     fn into_response(self) -> Response {
-        // `code` and `detail` only exist for `Invalid`; the rest pass through unchanged, so the conversion can be migrated one variant at a time
+        // code and detail exist only for Invalid; the rest stay as-is, conversions can proceed one at a time
         let mut code: Option<&'static str> = None;
         let mut detail: Option<String> = None;
         let (status, message) = match &self.0 {

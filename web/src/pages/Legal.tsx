@@ -1,7 +1,6 @@
-/* Legal pages (/privacy, /terms): public pages reachable from the login page footer.
-   Self-hosted context: the operator is whichever organization deployed it, so this
-   text is the default policy shipped with the software — keep it strictly honest
-   (what's stored, when data leaves the server, what deletion actually means). */
+/* 法务页（/privacy、/terms）：登录页页脚可达的公共页面。
+   自部署语境：运营方是部署它的组织，这里的文本是随软件附带的缺省政策，
+   口径务求诚实（存了什么、什么情况下数据会离开服务器、删除的真实语义）。 */
 import { Link } from "@tanstack/react-router";
 import { S } from "../i18n";
 

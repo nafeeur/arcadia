@@ -1,23 +1,24 @@
 //! Per-model concurrency limits.
 //!
-//! The real constraint is the provider's rate limit, and that's keyed on (base_url, model) —
-//! a local Ollama might only handle 2 concurrent calls while a hosted API can take 50.
-//! Previously there was just one deployment-level `worker_concurrency` governing every job,
-//! which meant one number was managing two entirely different things.
+//! The real constraint is the provider's rate limit, and that's scoped to
+//! (base_url, model) — a local Ollama might only take 2 concurrent requests,
+//! while a hosted API can take 50. Previously a single deployment-level
+//! `worker_concurrency` governed all tasks, which meant one number was
+//! governing two entirely different things.
 //!
-//! A model with no configuration falls back to `deployment_settings.default_model_concurrency`
-//! (default 10).
+//! A model with no dedicated config falls back to
+//! `deployment_settings.default_model_concurrency` (default 10).
 
 use sqlx::PgPool;
 use utopia_core::models::ModelLimit;
 use utopia_core::AppResult;
 
-/// How much concurrency this model is allowed. Falls back to the deployment default when
-/// there's no dedicated configuration.
+/// How much concurrency this model is allowed. Falls back to the deployment
+/// default when there's no dedicated config.
 ///
-/// Queried before every LLM call — against a call that often takes twenty-odd seconds, this
-/// query's cost is negligible, and in exchange an administrator's change takes effect
-/// immediately with no cache invalidation to implement.
+/// Queried once before every LLM call — against a call that routinely takes
+/// twenty-odd seconds, this query's cost is negligible, and in exchange an
+/// admin's change takes effect immediately, with no cache invalidation needed.
 pub async fn limit_for(pool: &PgPool, base_url: &str, model: &str) -> AppResult<usize> {
     let row: Option<(i32,)> = sqlx::query_as(
         "SELECT max_concurrent FROM model_concurrency WHERE base_url = $1 AND model = $2",
@@ -37,7 +38,7 @@ pub async fn limit_for(pool: &PgPool, base_url: &str, model: &str) -> AppResult<
     Ok(dflt.max(1) as usize)
 }
 
-/// Configured models plus the deployment default (fetched together for the admin page).
+/// Configured models plus the deployment default (fetched in one go for the admin page).
 pub async fn list(pool: &PgPool) -> AppResult<(Vec<ModelLimit>, i32)> {
     let rows: Vec<ModelLimit> = sqlx::query_as(
         "SELECT base_url, model, max_concurrent FROM model_concurrency ORDER BY base_url, model",
@@ -52,8 +53,8 @@ pub async fn list(pool: &PgPool) -> AppResult<(Vec<ModelLimit>, i32)> {
     Ok((rows, dflt))
 }
 
-/// Sets one model's concurrency. `max_concurrent` of None deletes the dedicated configuration,
-/// falling back to the default.
+/// Set a model's concurrency. `max_concurrent` of None deletes the dedicated
+/// config and falls back to the default.
 pub async fn set(
     pool: &PgPool,
     base_url: &str,
@@ -91,7 +92,7 @@ pub async fn set(
     Ok(())
 }
 
-/// Deployment-wide default concurrency (used by every model without its own configuration).
+/// Deployment default concurrency (used by every model without its own config).
 pub async fn set_default(pool: &PgPool, value: i32) -> AppResult<()> {
     if !(1..=256).contains(&value) {
         return Err(utopia_core::AppError::invalid(
@@ -106,8 +107,8 @@ pub async fn set_default(pool: &PgPool, value: i32) -> AppResult<()> {
     Ok(())
 }
 
-/// Models actually in use in this deployment (those appearing in some workspace's settings),
-/// for the admin page to list as configurable.
+/// Models actually in use across the deployment (those seen in any workspace's
+/// settings), so the admin page can list what's configurable.
 pub async fn models_in_use(pool: &PgPool) -> AppResult<Vec<(String, String, String)>> {
     Ok(sqlx::query_as(
         "SELECT DISTINCT chat_base_url, chat_model, 'chat' FROM llm_settings

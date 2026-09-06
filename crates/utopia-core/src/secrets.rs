@@ -1,26 +1,28 @@
-//! Encryption at rest for credentials ("sealing").
+//! Encryption at rest for credentials (sealing).
 //!
-//! LLM API keys, Ask-the-Data connection strings, tokens in source configs, and API
-//! sources' push keys used to be stored in plaintext — anyone who could read the database
-//! (or a backup of it) had every external credential. These values are now sealed with
-//! AES-256-GCM before they reach the database, with the key kept out of the database:
-//! the `UTOPIA_SECRET_KEY` environment variable, or `secret.key` generated under the data
-//! directory on first start. The threat model is "a database leak is not a credential
-//! leak": a pg_dump, or a read-only database account, only gets ciphertext. Someone who
-//! can read both the data directory and the database (i.e. who has logged into the
-//! server) is out of scope here — that's a server access-control matter.
+//! LLM API keys, data-source connection strings, tokens in source configs, and push
+//! secrets for API sources stored in the database used to be plaintext — anyone who
+//! could read the database (or a backup of it) got every external credential. Now
+//! these values are sealed with AES-256-GCM before hitting the database, with the key
+//! kept out of the database: the `UTOPIA_SECRET_KEY` environment variable, or a
+//! `secret.key` generated under the data directory on first startup. The threat model
+//! is "a leaked database doesn't mean leaked credentials" — a pg_dump, or a read-only
+//! database account, gets you ciphertext. Someone who can read both the data directory
+//! and the database (i.e. who has logged into the server) is out of scope here — that's
+//! server access control's job.
 //!
-//! **Format**: `enc:v1:` + base64(nonce(12) ‖ ciphertext+tag). A value with no prefix is
-//! read as plaintext (a pre-upgrade legacy row); at startup, callers of [`crate::secrets`]
-//! (the store's backfill) seal those. Sealing is idempotent: sealing an already-sealed
-//! value returns it unchanged, so neither the read path nor the write path needs to check first.
+//! **Format**: `enc:v1:` + base64(nonce(12) ‖ ciphertext+tag). Values without the prefix
+//! are read as plaintext (legacy rows written before the upgrade); callers of
+//! [`crate::secrets`] at startup (the store's backfill) seal them in. Sealing is
+//! idempotent: sealing an already-sealed value returns it unchanged, so neither the read
+//! nor write path needs to check first.
 //!
-//! **One key per process**: [`init`] is called once at service startup; before it's
-//! initialized, [`seal`] returns its input unchanged and [`open`] only accepts plaintext —
-//! this is the path taken by unit tests and tools that don't run the service.
+//! **One key per process**: the service calls [`init`] once at startup; before it's
+//! initialized, [`seal`] returns its input unchanged and [`open`] only accepts
+//! plaintext — this is the path unit tests and service-less tools take.
 //!
-//! Key rotation is out of scope for this version: rotating the key means reading with the
-//! old key and writing back with the new one, as an explicit migration.
+//! Key rotation isn't in this version: rotating a key means reading with the old key and
+//! writing back with the new one, which is an explicit migration.
 
 use aes_gcm::aead::{Aead, KeyInit, OsRng};
 use aes_gcm::{AeadCore, Aes256Gcm, Key, Nonce};
@@ -33,7 +35,8 @@ const NONCE_LEN: usize = 12;
 
 static SEALER: OnceLock<Aes256Gcm> = OnceLock::new();
 
-/// 装钥匙。只认第一次；再调返回 false，钥匙不变
+/// Loads the key. Only the first call counts; subsequent calls return false and the
+/// key is left unchanged
 pub fn init(key: [u8; 32]) -> bool {
     SEALER
         .set(Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key)))
@@ -44,12 +47,12 @@ pub fn is_ready() -> bool {
     SEALER.get().is_some()
 }
 
-/// 生一把新钥匙（CSPRNG 32 字节）
+/// Generates a fresh key (32 CSPRNG bytes)
 pub fn generate_key() -> [u8; 32] {
     Aes256Gcm::generate_key(OsRng).into()
 }
 
-/// 钥匙的文本形态：64 位十六进制或 44 位 base64，都收
+/// Text form of the key: 64-char hex or 44-char base64, either is accepted
 pub fn parse_key(text: &str) -> Option<[u8; 32]> {
     let t = text.trim();
     let bytes: Vec<u8> = if t.len() == 64 && t.bytes().all(|b| b.is_ascii_hexdigit()) {
@@ -71,7 +74,8 @@ pub fn is_sealed(stored: &str) -> bool {
     stored.starts_with(PREFIX)
 }
 
-/// 封印。幂等：已封印的原样返回；没装钥匙时原样返回（明文落库，和从前一样）
+/// Seals. Idempotent: an already-sealed value returns unchanged; with no key loaded,
+/// returns unchanged too (plaintext hits the database, same as before)
 pub fn seal(plain: &str) -> String {
     if is_sealed(plain) {
         return plain.to_string();
@@ -88,8 +92,10 @@ pub fn seal(plain: &str) -> String {
     format!("{PREFIX}{}", B64.encode(bytes))
 }
 
-/// 开封。没有前缀的按明文原样返回（升级前的旧行）；有前缀而钥匙不对或被改过，报错——
-/// 静默回一段乱码会让下游拿它去调外部接口，错得更远
+/// Opens. Without the prefix, returns unchanged as plaintext (legacy rows from before
+/// the upgrade); with the prefix but a wrong key or tampered value, errors out — silently
+/// returning garbage would let downstream code use it to call an external API, which
+/// fails in a worse way
 pub fn open(stored: &str) -> anyhow::Result<String> {
     let Some(body) = stored.strip_prefix(PREFIX) else {
         return Ok(stored.to_string());
@@ -118,7 +124,8 @@ pub fn open_opt(stored: Option<&str>) -> anyhow::Result<Option<String>> {
     stored.map(open).transpose()
 }
 
-/// 把 JSON 对象里给定键的字符串值封印（就地）。非字符串值不动
+/// Seals the string values of given keys in a JSON object (in place). Non-string
+/// values are left alone
 pub fn seal_json_keys(value: &mut serde_json::Value, keys: &[&str]) {
     if let Some(obj) = value.as_object_mut() {
         for key in keys {
@@ -130,7 +137,7 @@ pub fn seal_json_keys(value: &mut serde_json::Value, keys: &[&str]) {
     }
 }
 
-/// [`seal_json_keys`] 的反向
+/// The inverse of [`seal_json_keys`]
 pub fn open_json_keys(value: &mut serde_json::Value, keys: &[&str]) -> anyhow::Result<()> {
     if let Some(obj) = value.as_object_mut() {
         for key in keys {
@@ -148,7 +155,7 @@ mod tests {
     use super::*;
 
     fn ready() {
-        // 测试二进制里只装一次；后面的测试拿同一把
+        // Loaded only once within the test binary; later tests reuse the same key
         let _ = init([7u8; 32]);
     }
 

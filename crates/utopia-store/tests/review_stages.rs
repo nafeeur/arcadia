@@ -1,4 +1,4 @@
-//! 审核阶段是执行边界：human 项必须展示给人，但绝不能被自动裁决器捞走。
+//! The review stage is an enforcement boundary: human items must be shown to a person, and must never be scooped up by the automatic adjudicator.
 
 use sqlx::PgPool;
 use utopia_store::resolution::{self, ReviewStage};
@@ -98,8 +98,9 @@ async fn human_review_is_visible_but_never_pending_adjudication() -> anyhow::Res
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].stage, "adjudicating");
 
-        // pending pair 的唯一索引不含 stage。后出现的 namesake 必须把已有行升级为
-        // human；反向的普通请求不得再把它降回自动裁决通道。
+        // The unique index on a pending pair does not include stage. A later namesake
+        // must upgrade the existing row to human; the reverse, ordinary request must not
+        // downgrade it back into the auto-adjudication channel.
         resolution::create_review(&pool, kb, left, third, 1.0, "namesake", ReviewStage::Human)
             .await?;
         resolution::create_review(

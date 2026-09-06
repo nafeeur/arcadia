@@ -1,15 +1,16 @@
-//! 记录轴回退（0019 / #307），打在真库上。
+//! Recording-axis rewind (0019 / #307), run against a real database.
 //!
-//! 为什么非要连库：这道防御**整个活在 SQL 字符串里**。`cargo check` 看不见
-//! 一个漏写的 WHERE，clippy 也不会说一个字——0009 栽的正是这一跤（`NULL <> uuid`
-//! 不报错、只是什么都不选），`human_type_decisions` 那个测试就是那次留下的。
+//! Why this needs a real database: this defense **lives entirely inside SQL strings**. `cargo check`
+//! can't see a missing WHERE clause, and clippy won't say a word — 0009 fell into exactly this trap
+//! (`NULL <> uuid` doesn't error, it just selects nothing); the `human_type_decisions` test is what
+//! that incident left behind.
 //!
-//! 两个方向都要断言，因为它们会以不同的方式坏掉：
-//! - 撤掉的行在 `as_of = 现在` **不出现**（谓词写反了会让作废行全体复活）
-//! - 撤掉的行在作废时刻**之前出现**（谓词没接上就永远是"现在"，回放照旧空手）
-//! - `recorded_at` 晚于 T 的行在 T **不出现**（只写下界会让三月看见四月的修正）
+//! Both directions need assertions, because they break in different ways:
+//! - a retracted row must **not appear** at `as_of = now` (an inverted predicate would resurrect every retracted row)
+//! - a retracted row must appear **before** its invalidation moment (an unwired predicate defaults to "now" forever, so replay comes back empty-handed anyway)
+//! - a row whose `recorded_at` is later than T must **not appear** at T (writing only the lower bound would let March see April's correction)
 //!
-//! 自建自拆：一次性 org/workspace/kb，跑完连 org 一起删。绝不碰已有的库。
+//! Self-seeding, self-cleaning: a one-off org/workspace/kb, deleted along with the org once done. Never touches an existing database.
 
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -21,15 +22,15 @@ fn t(s: &str) -> chrono::DateTime<chrono::Utc> {
 struct Fixture {
     kb: Uuid,
     zhang: Uuid,
-    /// 03-01 记下、03-20 被修正掉的那条断言
+    /// The assertion recorded on 03-01 and corrected out on 03-20
     retracted: Uuid,
-    /// 03-20 记下的修正行
+    /// The correction row recorded on 03-20
     correction: Uuid,
-    /// 03-05 推出、03-22 前提没了的派生
+    /// The derivation produced on 03-05 whose premise disappeared on 03-22
     derived: Uuid,
 }
 
-/// 一个人接过一个项目，我们三月改了主意，引擎在这中间推过一条边。
+/// A person takes over a project, we change our minds in March, and the engine derives an edge somewhere in between.
 async fn seed(pool: &PgPool) -> anyhow::Result<Fixture> {
     let (org, ws, kb) = (Uuid::now_v7(), Uuid::now_v7(), Uuid::now_v7());
     let (person, project) = (Uuid::now_v7(), Uuid::now_v7());
@@ -84,8 +85,9 @@ async fn seed(pool: &PgPool) -> anyhow::Result<Fixture> {
         (phoenix, project, "Project Phoenix"),
         (program, project, "Phoenix Program"),
     ] {
-        // **实体的出生时刻也要回填**：事实记在三月，实体却是"刚才"建的，那种账本
-        // 现实里不存在——而 #336 之后 T 时刻还没出生的实体不再出现在图上
+        // **The entity's birth moment must be backfilled too**: a ledger where the fact is recorded
+        // in March but the entity was created "just now" doesn't exist in reality — and since #336,
+        // an entity not yet born at moment T no longer appears on the graph
         sqlx::query(
             "INSERT INTO entities (id, kb_id, type_id, canonical_name, created_at)
              VALUES ($1, $2, $3, $4, $5)",
@@ -127,8 +129,8 @@ async fn seed(pool: &PgPool) -> anyhow::Result<Fixture> {
         .execute(pool)
         .await?;
 
-    // 派生也有两根轴（derived_at / invalidated_at）：回放的图上留着**当时**推出
-    // 的边，而不是今天这套规则的结论
+    // Derivations also have two axes (derived_at / invalidated_at): the replayed graph keeps the edge
+    // that was derived **at the time**, not the conclusion of today's rule set
     sqlx::query(
         "INSERT INTO rules (id, kb_id, predicate_id, kind) VALUES ($1, $2, $3, 'transitive')",
     )

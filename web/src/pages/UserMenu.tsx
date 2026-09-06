@@ -8,6 +8,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  Check,
+  Languages,
   Layers,
   LogOut,
   ShieldCheck,
@@ -15,9 +17,9 @@ import {
 } from "lucide-react";
 import { api, type User } from "../api";
 import { usePopoverFlip } from "../ui/popoverFlip";
-import { S } from "../i18n";
+import { LANGS, LANG_NAMES, S, lang, setLang } from "../i18n";
 
-/** Initials avatar: neutral gray background (no chrome color bias), first two Latin word-initials, or first two CJK characters. */
+/** 首字母头像：中性灰底（chrome 零色偏），拉丁取词首两枚，CJK 取前两字。 */
 export function Avatar({ name, size = 24 }: { name: string; size?: number }) {
   const trimmed = name.trim();
   const words = trimmed.split(/\s+/).filter(Boolean);
@@ -127,6 +129,30 @@ export function UserMenu({ user }: { user: User }) {
                 {S.account.administration}
               </Row>
             )}
+          </div>
+
+          {/* 界面语言：看的人自己定，不经过后端（docs/decisions/0004）。
+              每个选项用**它自己的语言**写——看不懂英文的人才认得出"中文" */}
+          <div className="border-t border-line">
+            <div className="flex items-center gap-3 px-4 pt-3 pb-1 text-fine text-ink-3">
+              <Languages size={13} className="text-ink-3" />
+              {S.account.language}
+            </div>
+            {LANGS.map((l) => (
+              <Row
+                density="menu"
+                className="gap-3 px-4 py-2 text-body"
+                key={l}
+                icon={
+                  <span className="block w-[13px]">
+                    {l === lang && <Check size={13} className="text-ink-2" />}
+                  </span>
+                }
+                onClick={() => setLang(l)}
+              >
+                {LANG_NAMES[l]}
+              </Row>
+            ))}
           </div>
 
           <div className="border-t border-line">

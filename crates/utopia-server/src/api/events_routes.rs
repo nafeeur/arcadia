@@ -1,6 +1,5 @@
-//! KB event stream (SSE): real-time push for document ingest/extraction status and review-queue changes.
-//! The frontend only uses a received event to invalidate and refetch react-query state — the event itself
-//! carries no business data, so it's naturally idempotent.
+//! KB event stream (SSE): real-time push of document ingestion/extraction status and review queue changes.
+//! On receiving an event, the frontend only invalidates react-query caches to refetch — the event itself carries no business data, so it's naturally idempotent.
 
 use axum::extract::{Path, State};
 use axum::response::sse::{Event, KeepAlive, Sse};
@@ -31,7 +30,7 @@ pub async fn kb_events(
                         .data(serde_json::to_string(&ev).unwrap_or_else(|_| "{}".into())));
                 }
                 Ok(_) => continue,
-                // Consumer fell behind and got a dropped frame: fine, the event is only a "time to refresh" signal
+                // Consumer lagged and dropped frames: doesn't matter, the event is just a "time to refresh" signal
                 Err(broadcast::error::RecvError::Lagged(_)) => continue,
                 Err(broadcast::error::RecvError::Closed) => return,
             }

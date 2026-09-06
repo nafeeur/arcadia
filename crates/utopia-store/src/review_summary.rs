@@ -1,16 +1,13 @@
-//! The review desk overview (#377): what's waiting, what's been handled, and the health of the
-//! knowledge base.
+//! 审核台的总览（#377）：等着办的、办过的、库的成色。
 //!
-//! Same premise as [`crate::review::counts`] — **count, don't fetch**: every section is an
-//! aggregate query, never rows pulled down to be counted in Rust. The WHERE clauses for the
-//! seven queue categories match `counts` character-for-character (the `unconfirmed` fragment is
-//! pulled out into a shared constant), otherwise the left-rail numbers and the overview numbers
-//! would eventually drift apart.
+//! 与 [`crate::review::counts`] 同一个前提——**数数不取数**，每一段都是
+//! 聚合查询，不把行拉下来在 Rust 里数。七档队列的 WHERE 与 `counts` 逐字
+//! 相同（`unconfirmed` 那段抽成了常量共用），否则左栏的数和总览的数迟早
+//! 分叉。
 //!
-//! "Handled" reads from the audit ledger: the four action families review./fact./conflict./merge.,
-//! the same filter used by the decision timeline (`audit::review_history`). Entries with no
-//! actor are automatic self-adjudication (batched decisions), counted separately — "how much did
-//! the system handle for you" is itself a number worth having.
+//! 「办过的」读的是审计台账：review./fact./conflict./merge. 四族动作，与
+//! 决策流水（`audit::review_history`）同一个筛子。没有 actor 的那些是后台
+//! 自裁（攒批裁决），单独数出来——「AI 替你办了多少」本身就是一个数。
 
 use chrono::{DateTime, Duration, NaiveDate, Utc};
 use sqlx::PgPool;
@@ -24,12 +21,12 @@ use uuid::Uuid;
 
 use crate::review::{LOW_CONFIDENCE_BELOW, UNCONFIRMED_FACT};
 
-/// How many days of "handled" history to show, day by day.
+/// 「办过的」按天看多少天
 pub const DAILY_DAYS: i64 = 14;
-/// Max people listed under "who handled it".
+/// 「谁办的」最多列几个人
 const TOP_ACTORS: i64 = 5;
 
-/// Same filter as `audit::review_history`: the four action families in the review domain.
+/// 与 `audit::review_history` 同一个筛子：review 域的四族动作
 const DECISION_ACTIONS: &str = "(e.action LIKE 'review.%' OR e.action LIKE 'fact.%'
      OR e.action LIKE 'conflict.%' OR e.action LIKE 'merge.%')";
 
@@ -65,10 +62,9 @@ struct WaitingRow {
 }
 
 async fn waiting(pool: &PgPool, kb_id: Uuid) -> AppResult<ReviewWaiting> {
-    // One count/min pair per category, all returned by one query. "Oldest" uses each table's
-    // own clock: pending facts, duplicates and conflicts use created_at; axioms and ontology
-    // defects use detected_at; the two fact queues use the fact's own recorded_at — all of them
-    // answer "how long has this been waiting"
+    // 每档一对 count/min，一条查询端回来。「最老」按各表自己的时钟：待办事实与
+    // 重复、冲突是 created_at，公理与本体缺陷是 detected_at，两种事实队列是
+    // 事实自己的 recorded_at——都是「从什么时候起就在等」
     let sql = format!(
         "SELECT
            (SELECT count(*) FROM pending_facts WHERE kb_id = $1) AS pending,
@@ -141,8 +137,7 @@ struct DayRow {
 }
 
 async fn decided(pool: &PgPool, kb_id: Uuid) -> AppResult<ReviewDecided> {
-    // Both windows fetched in one pass: filter by 30 days, and count the 7-day figure again
-    // separately with FILTER
+    // 两个窗口一趟查完：按 30 天筛，7 天的用 FILTER 另数一遍
     let by_action: Vec<ActionRow> = sqlx::query_as(&format!(
         "SELECT e.action, (e.actor_id IS NULL) AS automatic,
                 count(*) FILTER (WHERE e.created_at >= now() - interval '7 days') AS last_7d,
@@ -225,8 +220,7 @@ async fn decided(pool: &PgPool, kb_id: Uuid) -> AppResult<ReviewDecided> {
         }
     };
 
-    // Fill in the days with no decisions — the bars need to be evenly spaced, and a missing
-    // day would make the chart lie
+    // 补齐没有决定的那些天——柱子要等距，缺一天图就说谎
     let by_day: BTreeMap<NaiveDate, i64> = days.into_iter().map(|d| (d.day, d.count)).collect();
     let today = Utc::now().date_naive();
     let daily = (0..DAILY_DAYS)
@@ -256,9 +250,8 @@ struct HealthRow {
 }
 
 async fn health(pool: &PgPool, kb_id: Uuid) -> AppResult<ReviewHealth> {
-    // Only count facts that are still alive (invalidated_at IS NULL): invalidated ones don't
-    // count toward the knowledge base's health. "Contested" = attached to either end of a
-    // still-open conflict
+    // 只数在世的事实（invalidated_at IS NULL）：作废的不算库的成色。
+    // 「有争议」= 挂在一条还开着的冲突的任一端
     let sql = format!(
         "SELECT count(*) AS facts,
                 count(*) FILTER (WHERE f.confidence < $2 AND f.derived_by_rule IS NULL) AS low_confidence,

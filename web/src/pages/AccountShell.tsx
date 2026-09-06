@@ -1,5 +1,5 @@
-/* Account-level shell: hosts Profile / Administration.
-   Not tied to any KB, so no KB switcher, no tab nav — just the wordmark, back link, and user menu. */
+/* 账户层壳：Profile / Administration 的宿主。
+   与 KB 无关，所以没有 KB 切换器、没有 tab 导航——只有字标、返回、用户菜单。 */
 import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate } from "@tanstack/react-router";
 import { usePageTitle } from "../useTitle";
@@ -23,7 +23,7 @@ export function AccountShell() {
   const navigate = useNavigate();
   const me = useQuery({ queryKey: ["me"], queryFn: api.me });
   const health = useQuery({ queryKey: ["health"], queryFn: api.health, staleTime: Infinity });
-  // Title: `Arcadia | Persona` — the account area shares one name, not broken down per page
+  // 标题：`Utopia | Persona`——账户区整体一个名字，不逐页细分
   usePageTitle(S.app.name, S.account.titleTag);
 
   if (me.isPending) {
@@ -46,8 +46,8 @@ export function AccountShell() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden u-arrive">
-      {/* Header mirrors the Docs page: section wordmark (click to go home) + back + GitHub·version + user */}
-      {/* px-8 matches the app header's own inset — that top-right cluster shouldn't shift between pages */}
+      {/* 顶栏与 Docs 页同构：分区字标（点击回城）+ 返回 + GitHub·版本 + 用户 */}
+      {/* px-8 与 App 顶栏同一个内距：右上那一组换页时不该动 */}
       <header className="glass-strong relative z-40 border-x-0 border-t-0 h-14 shrink-0 flex items-center px-8">
         <SectionMark text={S.account.brand} title={S.docs.backTitle} />
         <HeaderActions
@@ -58,9 +58,9 @@ export function AccountShell() {
       </header>
 
       <div className="flex-1 min-h-0 flex">
-        {/* Account nav rail (two items, one more for admins) */}
+        {/* 账户导航栏（仅两项，管理员多一项） */}
         <aside className={`${RAIL_CLS} p-3 space-y-1`}>
-          {/* exact: /account is a prefix of /account/kbs, so default prefix matching would light up both */}
+          {/* exact：/account 是 /account/kbs 的前缀，默认前缀匹配会双亮 */}
           <Link
             to="/account"
             activeOptions={{ exact: true }}

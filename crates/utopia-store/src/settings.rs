@@ -3,8 +3,9 @@ use utopia_core::models::LlmSettings;
 use utopia_core::{secrets, AppError, AppResult};
 use uuid::Uuid;
 
-/// Unsealed on the way out: both API keys are sealed at rest (`utopia_core::secrets`).
-/// Every query that returns `LlmSettings` passes through here.
+/// Unsealed on the way out: both API keys are sealed at rest
+/// (`utopia_core::secrets`). Every query that returns `LlmSettings` passes
+/// through here
 fn opened(mut s: LlmSettings) -> AppResult<LlmSettings> {
     s.chat_api_key = secrets::open_opt(s.chat_api_key.as_deref()).map_err(AppError::Other)?;
     s.embed_api_key = secrets::open_opt(s.embed_api_key.as_deref()).map_err(AppError::Other)?;
@@ -20,10 +21,10 @@ pub async fn get(pool: &PgPool, workspace_id: Uuid) -> AppResult<Option<LlmSetti
     row.map(opened).transpose()
 }
 
-/// Picks any one workspace's settings that has a chat model configured. Used by the
-/// endpoint probe: the endpoint address is shared across the deployment, so it reads the
-/// same place regardless of which workspace's config it comes from, and the probe has no
-/// "current workspace" context.
+/// Any one workspace's settings that has a chat model configured. Used by the
+/// endpoint probe: the endpoint address is shared across the deployment, so it
+/// doesn't matter which workspace's config it's read from, and the probe has
+/// no "current workspace" context anyway.
 pub async fn any_with_chat(pool: &PgPool) -> AppResult<Option<LlmSettings>> {
     let row: Option<LlmSettings> = sqlx::query_as(
         "SELECT * FROM llm_settings
@@ -35,7 +36,8 @@ pub async fn any_with_chat(pool: &PgPool) -> AppResult<Option<LlmSettings>> {
     row.map(opened).transpose()
 }
 
-/// Upsert; passing None for an api_key means keep the old value (the frontend never echoes secrets back).
+/// upsert; passing None for an api_key means keep the old value (the frontend
+/// never sends secrets back).
 #[allow(clippy::too_many_arguments)]
 pub async fn upsert(
     pool: &PgPool,

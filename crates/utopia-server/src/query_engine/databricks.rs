@@ -1,7 +1,8 @@
 //! Databricks SQL Statement Execution API (`/api/2.0/sql/statements`).
-//! Behind one SQL warehouse sits Unity Catalog's whole lakehouse (mostly Delta);
-//! the token is a personal access token. Results come back as INLINE + JSON_ARRAY: values
-//! are all strings, and are restored to numbers/booleans using the column types from the manifest.
+//! Behind one SQL warehouse sits the whole Unity Catalog lakehouse (mostly Delta),
+//! and the token is a personal access token. Results come back as INLINE +
+//! JSON_ARRAY: every value is a string, restored to numbers and booleans using
+//! the column types from the manifest.
 
 use super::conn::DatabricksConn;
 use super::{
@@ -158,7 +159,8 @@ impl QueryEngine for DatabricksEngine {
     }
 
     async fn fetch_schema(&self) -> anyhow::Result<Vec<SchemaColumn>> {
-        // With a catalog given, query that catalog's information_schema; otherwise use the session default
+        // With a catalog, query that catalog's information_schema; without one,
+        // fall back to the session default
         let prefix = self
             .conn
             .catalog

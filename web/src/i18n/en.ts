@@ -237,6 +237,7 @@ export const en = {
     changePassword: "Update password",
     passwordChanged: "Password updated",
     avatarHint: "Avatars are generated from your name for now.",
+    language: "Language",
     kbsNav: "Knowledge bases",
     kbsTitle: "Knowledge bases",
     kbOpen: "Open",
@@ -1088,12 +1089,13 @@ export const en = {
         "provider and is per model — a local Ollama may manage two, a hosted API fifty. " +
         "Background work (extraction, resolution, indexing) waits for a slot; chat and search " +
         "never do. Takes effect immediately.",
-      /* Deployment-level default, used when creating new knowledge bases. Deliberately not named "system language". */
+      /* 部署级默认值：新建库时用。名字刻意不叫"系统语言" */
       ontologyLang: "Default ontology language",
       ontologyLangHint:
         "The language new knowledge bases start their ontology in — class descriptions go " +
         "into the extraction prompt, so this follows the documents you expect, not the " +
-        "interface. Each knowledge base can change its own afterwards.",
+        "interface. Each knowledge base can change its own afterwards. " +
+        "Interface language is a per-reader choice in the account menu.",
       modelDefault: "Default",
       modelReset: "Reset",
       modelResetHint:

@@ -1,8 +1,8 @@
 //! Issuing and revoking personal access tokens (0014).
 //!
-//! **These are account-level routes, not knowledge-base-level** — a token belongs to a person, and
-//! a person can be in several knowledge bases. Which ones a token itself can reach is governed by
-//! its own `kb_ids`; that's a narrowing, not a grant of authorization.
+//! **Routed at the account level, not the KB level** — a token belongs to a person, and a person
+//! can have access to several KBs. Which KBs a token can reach is governed by its own `kb_ids`;
+//! that's narrowing, not granting.
 
 use axum::extract::{Path, State};
 use axum::Json;
@@ -17,10 +17,10 @@ use crate::state::AppState;
 #[derive(Deserialize)]
 pub struct IssueReq {
     pub name: String,
-    /// read | write. Defaults to read-only — letting an agent write to the ledger requires opting in explicitly
+    /// read | write. Defaults to read-only — letting an agent write to the ledger requires an explicit opt-in
     #[serde(default = "default_scope")]
     pub scope: String,
-    /// Default = every KB this person can access
+    /// Defaults to = every KB this person can access
     #[serde(default)]
     pub kb_ids: Option<Vec<Uuid>>,
     /// Days until expiry. Defaults to 90; explicitly passing 0 means it never expires
@@ -36,7 +36,7 @@ fn default_days() -> i64 {
     90
 }
 
-/// Issue one. **The plaintext appears only in this one response** — after that, only its hash is stored.
+/// Issue one. **The plaintext only ever appears in this one response**; after that, only the hash is stored.
 pub async fn issue(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -63,7 +63,7 @@ pub async fn issue(
         json!({ "name": view.name, "scope": view.scope }),
     )
     .await;
-    // The `token` field appears exactly this once. The list endpoint can never produce it
+    // The `token` field appears exactly once, right here. The list endpoint can never produce it
     Ok(Json(json!({ "token": plain, "info": view })))
 }
 

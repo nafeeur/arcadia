@@ -1,4 +1,4 @@
-// Current workspace/knowledge-base selection: persisted to localStorage + subscribed via useSyncExternalStore.
+// Current workspace/KB selection: persisted to localStorage + subscribed via useSyncExternalStore.
 function makeStore(key: string) {
   let current: string | null =
     typeof localStorage !== "undefined" ? localStorage.getItem(key) : null;

@@ -1,6 +1,5 @@
-/* Page title system: `{domain} | {page}`, brand first (product decision; the
-   cost is that truncated tabs share the same prefix).
-   Domains: Arcadia (main app) / Arcadia Charter (docs) / Arcadia Persona (account). */
+/* Page title system: `{domain} | {page}`, brand first (product decision; the cost is identical prefixes once tabs get truncated).
+   Domains: Utopia (main app) / Utopia Charter (docs) / Utopia Persona (account). */
 import { useEffect } from "react";
 
 export function usePageTitle(...parts: (string | null | undefined)[]) {

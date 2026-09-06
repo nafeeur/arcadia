@@ -1,15 +1,22 @@
-//! 个人访问令牌（0014 / 迁移 0017）。
+//! Personal access tokens (0014 / migration 0017).
 //!
-//! 这一枚令牌是给 MCP 客户端用的：长命、配在别人机器上的一个文件里、以发它的
-//! 人的身份行事。所以它必须撤得掉、过得了期、而且**范围只能比这个人更小**。
+//! This kind of token is for MCP clients: long-lived, configured in a file on
+//! someone else's machine, acting as the identity of whoever issued it. So it
+//! must be revocable, must expire, and its **scope can only be narrower than
+//! that person's**.
 //!
-//! 钉五件事：
+//! Pins down five things:
 //!
-//! - **明文只出现一次**。库里只有哈希，拿到整张表也复原不出那串字符
-//! - **撤销立刻生效**。而且是打戳不删行——「这把钥匙存在过」要查得到
-//! - **过期立刻失效**，判断在 SQL 里做，不在取回来之后做
-//! - **`kb_ids` 只收窄**。限定到一个库的令牌，够不着另一个
-//! - **`last_used_at` 会被写上**。撤之前人要答得出「这把还在用吗」
+//! - **The plaintext appears exactly once**. Only the hash lives in the
+//!   database; even the whole table doesn't recover that string
+//! - **Revocation takes effect immediately**. And it's a stamp, not a
+//!   delete — "this key existed" must remain queryable
+//! - **Expiry takes effect immediately**, checked in SQL, not after the row
+//!   comes back
+//! - **`kb_ids` only narrows**. A token scoped to one knowledge base can't
+//!   reach another
+//! - **`last_used_at` gets written**. Before revoking, someone must be able
+//!   to answer "is this one still in use?"
 
 use chrono::{Duration, Utc};
 use sqlx::PgPool;
@@ -73,7 +80,7 @@ async fn a_token_is_the_person_but_not_all_of_them() -> anyhow::Result<()> {
     let f = seed(&pool).await?;
 
     let run = async {
-        // ---- 一、发一枚，明文只这一次拿得到
+        // ---- 1. Issue one; the plaintext is obtainable only this once
         let (view, plain) = tokens::issue(&pool, f.user, "我的笔记本", "read", None, None).await?;
         assert!(plain.starts_with("utp_pat_"), "前缀要认得出是哪一种令牌");
         assert_eq!(view.scope, "read", "**缺省只读**：要写得显式勾");
@@ -90,7 +97,7 @@ async fn a_token_is_the_person_but_not_all_of_them() -> anyhow::Result<()> {
             "**明文的任何一段都不该出现在库里**——拿到整张表也复原不出来"
         );
 
-        // ---- 二、认得回来，而且顺手写了 last_used_at
+        // ---- 2. It authenticates, and last_used_at gets written along the way
         let auth = tokens::authenticate(&pool, &plain).await?;
         assert_eq!(auth.user_id, f.user, "令牌以发它的人的身份行事");
         assert!(!auth.can_write(), "read 的令牌不能写");
@@ -101,7 +108,7 @@ async fn a_token_is_the_person_but_not_all_of_them() -> anyhow::Result<()> {
                 .await?;
         assert!(used.is_some(), "**撤之前人要答得出「这把还在用吗」**");
 
-        // ---- 三、伪造的、前缀不对的，一律不认
+        // ---- 3. Forged tokens and wrong prefixes are never accepted
         assert!(
             tokens::authenticate(&pool, "utp_pat_deadbeef")
                 .await
@@ -115,7 +122,7 @@ async fn a_token_is_the_person_but_not_all_of_them() -> anyhow::Result<()> {
             "摄入令牌的前缀不该走这条路"
         );
 
-        // ---- 四、kb_ids 只收窄
+        // ---- 4. kb_ids only narrows
         let (_, scoped) =
             tokens::issue(&pool, f.user, "只给 A 库", "write", Some(&[f.kb_a]), None).await?;
         let auth = tokens::authenticate(&pool, &scoped).await?;
@@ -125,10 +132,10 @@ async fn a_token_is_the_person_but_not_all_of_them() -> anyhow::Result<()> {
             "**限定到一个库的令牌够不着另一个**——哪怕这个人两个库都能进"
         );
         assert!(auth.can_write(), "write 的令牌能写");
-        // 不限定的那一枚照样覆盖全部
+        // The unscoped token still covers everything
         assert!(tokens::authenticate(&pool, &plain).await?.covers(f.kb_b));
 
-        // ---- 五、撤销立刻生效，而且行还在
+        // ---- 5. Revocation takes effect immediately, and the row remains
         tokens::revoke(&pool, f.user, view.id).await?;
         assert!(
             tokens::authenticate(&pool, &plain).await.is_err(),
@@ -145,7 +152,7 @@ async fn a_token_is_the_person_but_not_all_of_them() -> anyhow::Result<()> {
             "撤两次的第二次该说没有这一行可撤"
         );
 
-        // ---- 六、过期
+        // ---- 6. Expiry
         let (expired_view, expired) = tokens::issue(
             &pool,
             f.user,
@@ -160,7 +167,7 @@ async fn a_token_is_the_person_but_not_all_of_them() -> anyhow::Result<()> {
             "过了期就不认"
         );
 
-        // ---- 七、列表把撤过的、过期的都列出来
+        // ---- 7. The list includes both revoked and expired tokens
         let all = tokens::list(&pool, f.user).await?;
         assert_eq!(all.len(), 3, "撤销过的也要列——撤过这件事本身要看得见");
         assert!(
@@ -174,7 +181,7 @@ async fn a_token_is_the_person_but_not_all_of_them() -> anyhow::Result<()> {
         );
         assert!(all.iter().any(|t| t.id == expired_view.id));
 
-        // 别人的令牌撤不动
+        // Someone else's token can't be revoked
         let other = Uuid::now_v7();
         assert!(
             tokens::revoke(&pool, other, expired_view.id).await.is_err(),

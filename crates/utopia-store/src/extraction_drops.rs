@@ -1,46 +1,58 @@
-//! 抽取丢弃信号：哪些事实抽出来了却没能落地，以及为什么。
+//! Extraction drop signals: which facts were extracted but failed to land, and why.
 //!
-//! 与 `ontology_misses` 分开是刻意的——那张表说的是"你的本体缺这些"，读者是
-//! 本体维护者，动作是加类型；这张说的是"这些事实没落地"，读者是上传文档的人，
-//! 动作是改文档或改本体。混在一个面板里两边都讲不清。
+//! Kept separate from `ontology_misses` on purpose — that table says "your
+//! ontology is missing these", read by the ontology maintainer, actioned by
+//! adding a type; this one says "these facts didn't land", read by whoever
+//! uploaded the document, actioned by editing the document or the ontology.
+//! Mixing them into one panel would muddy both.
 //!
-//! 记录失败不影响抽取（调用方一律 `let _ =`）——信号缺一条，远好过因为记信号
-//! 失败而中断整篇文档的抽取。
+//! A logging failure never blocks extraction (callers always use `let _ =`) —
+//! missing one signal is far better than aborting the whole document's
+//! extraction because logging the signal failed.
 
 use sqlx::PgPool;
 use utopia_core::models::ExtractionDrop;
 use utopia_core::AppResult;
 use uuid::Uuid;
 
-/// 原因码。前端按这个查文案，所以是稳定契约，不要改字面量。
+/// Reason codes. The frontend looks up copy by these, so they're a stable
+/// contract — don't change the literals.
 pub mod reason {
-    /// 主语没在 entities 里声明 → 类型不明，属性无法校验 domain
+    /// Subject wasn't declared in entities -> type unknown, can't validate the attribute's domain
     pub const SUBJECT_NOT_DECLARED: &str = "subject_not_declared";
-    /// 属性挂在了不该挂的类上（salary 挂到 Organization）
+    /// Attribute attached to a class it shouldn't be (e.g. salary on Organization)
     pub const ATTR_DOMAIN_MISMATCH: &str = "attr_domain_mismatch";
-    /// 属性事实既没给 value 也没给 object
+    /// Attribute fact gave neither a value nor an object
     pub const ATTR_NO_VALUE: &str = "attr_no_value";
-    /// 值不合 datatype，归一化失败
+    /// Value doesn't fit the datatype; normalization failed
     pub const ATTR_DATATYPE: &str = "attr_datatype";
-    /// 模型自报置信度低于阈值
+    /// Model's self-reported confidence is below threshold
     pub const LOW_CONFIDENCE: &str = "low_confidence";
-    /// 关系事实缺宾语
+    /// Relation fact is missing its object
     pub const OBJECT_MISSING: &str = "object_missing";
-    /// 模型给的这一条不合结构（缺 predicate 之类）→ 只跳这一条，不牵连整块
+    /// This item from the model is malformed (e.g. missing predicate) -> skip only this item, not the whole block
     pub const MALFORMED_ITEM: &str = "malformed_item";
-    /// 主语的类型对不上关系声明的 domain，**且对调也不合法**——那是选错了关系
-    /// 或类型判错，不是方向问题。照原样落库 + 记信号，交给人看，不猜
+    /// Subject's type doesn't match the relation's declared domain, **and
+    /// swapping them isn't valid either** — that means the wrong relation was
+    /// picked or the type was misjudged, not a direction problem. Land it
+    /// as-is plus log the signal, and leave it for a human — don't guess
     pub const DOMAIN_MISMATCH: &str = "domain_mismatch";
-    /// 模型给的"实体名"其实是一整句话或从句——不是一个东西的名字。
-    /// 这类东西永远匹配不到别处的提及，在图上是孤点，还会拖累消解
+    /// The "entity name" the model gave is actually a whole sentence or
+    /// clause — not the name of a thing. This kind of item never matches any
+    /// other mention, sits as an isolated node in the graph, and drags down resolution
     pub const NOT_AN_ENTITY_NAME: &str = "not_an_entity_name";
-    /// 主语违反 domain 而宾语符合，已按本体声明的方向把主宾掰正。
-    /// **动作必须留痕**：自动的、看不见的改写才是 0001 反对的那种
+    /// Subject violates the domain while the object fits it, so subject and
+    /// object have been swapped to match the ontology's declared direction.
+    /// **The action must leave a trace** — an automatic, invisible rewrite is
+    /// exactly what 0001 argues against
     pub const DIRECTION_CORRECTED: &str = "direction_corrected";
-    /// 模型输出被截断（撞上 max_tokens）→ 已完整的那些留下，尾巴丢掉
+    /// Model output was truncated (hit max_tokens) -> the complete items are kept, the tail is dropped
     pub const TRUNCATED_REPLY: &str = "truncated_reply";
-    /// 守卫放行了、结构却像从句（限定词起头的长串、句中的关系词）。**只记不挡**：
-    /// 实体照常落库，例句留下来——#193 要的是一份跨语料的标注集，再决定哪条升成硬规则
+    /// The guard let it through, but the structure looks like a clause (a
+    /// long run starting with a determiner, a relative word mid-sentence).
+    /// **Log only, never block**: the entity is still stored as usual, and the
+    /// example is kept — #193 wants a cross-corpus annotated set before
+    /// deciding which of these get promoted to a hard rule
     pub const CLAUSE_SUSPECT: &str = "clause_suspect";
 }
 
@@ -70,7 +82,8 @@ pub async fn record(
     Ok(())
 }
 
-/// 重抽开始时清掉这篇文档的旧信号——本轮要从头讲一遍这篇文档的故事。
+/// Clear this document's old signals when re-extraction starts — this pass
+/// tells the document's story from scratch.
 pub async fn clear_for_document(pool: &PgPool, document_id: Uuid) -> AppResult<()> {
     sqlx::query("DELETE FROM extraction_drops WHERE document_id = $1")
         .bind(document_id)
@@ -79,8 +92,10 @@ pub async fn clear_for_document(pool: &PgPool, document_id: Uuid) -> AppResult<(
     Ok(())
 }
 
-/// 一个 KB 的全部丢弃信号。行数按 (文档 × 原因 × 具体对象) 聚合后很小，
-/// 一次取回让 Library 既能算每篇的总数、又能直接展开详情，不必逐行发请求。
+/// All drop signals for a KB. Rows are aggregated by (document x reason x
+/// specific object), so the count stays small; fetching it all at once lets
+/// the Library both total each document's drops and expand details directly,
+/// without a request per row.
 pub async fn for_kb(pool: &PgPool, kb_id: Uuid) -> AppResult<Vec<ExtractionDrop>> {
     Ok(sqlx::query_as(
         "SELECT document_id, reason, detail, count, example FROM extraction_drops

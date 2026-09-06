@@ -1,4 +1,4 @@
-//! Builds LLM clients from workspace settings, plus per-model concurrency gates.
+//! Builds an LLM client from workspace settings, plus a per-model concurrency gate.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -31,10 +31,11 @@ pub fn embed_client(s: &LlmSettings) -> Option<LlmClient> {
     ))
 }
 
-/// Per-model semaphore registry. When the limit changes, swap in a fresh semaphore — in-flight
-/// permits on the old one simply run to completion, and the swap moment may briefly exceed the
-/// new limit, which is acceptable. In exchange, a change takes effect immediately with no cache
-/// invalidation to do, and no fighting with the fact that a tokio `Semaphore` can't shrink.
+/// A per-model semaphore registry. When the limit changes, swap in a new one — permits
+/// already in flight on the old one run to completion naturally, and the swap moment may
+/// briefly exceed the new limit, which is acceptable; in exchange we get "takes effect
+/// immediately on change" without cache invalidation, and without fighting tokio
+/// Semaphore's inability to shrink.
 #[derive(Default)]
 pub struct ModelGates {
     inner: std::sync::Mutex<HashMap<String, (usize, Arc<Semaphore>)>>,
@@ -56,14 +57,14 @@ impl ModelGates {
 
 /// Acquires a permit before a background task calls a model, held until the call finishes.
 ///
-/// **Background tasks only** (extraction, adjudication, ingest embedding, ontology
-/// suggestions). User chat and search never go through here — making someone's typing wait
-/// behind ten background extractions would be a bad product, and it's never a single person
-/// typing that actually blows through a provider's rate limit anyway.
+/// **For background tasks only** (extraction, adjudication, ingest embedding, ontology
+/// suggestions). User conversation and retrieval never go through here — making a person
+/// typing wait behind ten background extractions is what makes a product bad; and the
+/// thing that actually blows through a provider's rate limit is never a single person typing.
 ///
-/// When the limit can't be read (table not created yet, store temporarily unreachable), this
-/// **lets the call through**: the concurrency limit is a safeguard, and a pipeline shouldn't
-/// stall entirely just because its config couldn't be read.
+/// **Lets the call through** when the limit can't be read (table not yet created, DB
+/// temporarily unreachable): the concurrency limit is a safeguard, and shouldn't be able
+/// to stall the entire pipeline just because config couldn't be read.
 pub async fn acquire(
     state: &AppState,
     base_url: &str,
@@ -87,7 +88,7 @@ pub async fn acquire_chat(state: &AppState, s: &LlmSettings) -> Option<OwnedSema
     acquire(state, base, model).await
 }
 
-/// Convenience form of `acquire`: for the embedding model.
+/// Convenience form of `acquire`: the embedding model.
 pub async fn acquire_embed(state: &AppState, s: &LlmSettings) -> Option<OwnedSemaphorePermit> {
     let (base, model) = (s.embed_base_url.as_deref()?, s.embed_model.as_deref()?);
     acquire(state, base, model).await

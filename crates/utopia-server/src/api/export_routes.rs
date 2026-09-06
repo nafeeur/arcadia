@@ -1,11 +1,13 @@
-//! 整库导出为 RDF（0020）。
+//! Export the whole KB as RDF (0020).
 //!
-//! **边查边发**：一页事实序列化完就把攒下的字节送出去，不在内存里拼出整份文件。
-//! 一个十万条事实的库正是最需要导出的那种库，也正是「先拼成一个 String」会
-//! 把服务打死的那种库。
+//! **Query and stream as you go**: once a page of facts is serialized, the accumulated bytes go
+//! out immediately — the whole file is never assembled in memory. A KB with a hundred thousand
+//! facts is exactly the kind of KB that most needs exporting, and exactly the kind that "build a
+//! String first" would kill the service on.
 //!
-//! 中途出错只能截断——HTTP 头早就发出去了。所以错误进日志，而客户端拿到的是
-//! 一份短了一截的文件；这比先攒后发要好，那种做法在同样的库上根本发不出来。
+//! A mid-stream error can only truncate — the HTTP headers went out long ago. So the error goes
+//! to the log, and the client gets a file that's cut short; that's still better than buffer-then-send,
+//! which couldn't send anything at all on the same KB.
 
 use axum::body::Body;
 use axum::extract::{Path, Query, State};
@@ -24,10 +26,10 @@ use crate::state::AppState;
 
 #[derive(Deserialize)]
 pub struct ExportQuery {
-    /// `turtle`（缺省）或 `jsonld`
+    /// `turtle` (default) or `jsonld`
     #[serde(default)]
     pub format: Option<String>,
-    /// 造 IRI 用的对外地址。不给就用 URN——稳定，且不假装自己知道部署在哪
+    /// External address used to build IRIs. If not given, falls back to URN — stable, and doesn't pretend to know where it's deployed
     #[serde(default)]
     pub base: Option<String>,
 }
@@ -44,7 +46,7 @@ pub async fn export(
     })?;
     let names = Names::new(kb_id, q.base.as_deref()).map_err(AppError::Validation)?;
 
-    // 导出是一次「整个库离开这台机器」的动作，台账要记下（0014 的同一条理由）
+    // Exporting is an act of "the whole KB leaving this machine" — the ledger should record it (same rationale as 0014)
     let _ = utopia_store::audit::record(
         &state.pool,
         Some(kb_id),
@@ -94,8 +96,8 @@ pub async fn export(
             yield axum::body::Bytes::from(buf.take());
         }
 
-        // 现行三元组按「导出这一刻」判定，整份文件用同一个 now：
-        // 边发边取当前时间的话，同一份文件的前后两半会按两个不同的现在写
+        // Current triples are judged as of "the moment of export", and the whole file uses the same now:
+        // fetching the current time as we go would write the two halves of the same file against two different nows
         let now = chrono::Utc::now();
         let mut after = None;
         loop {
@@ -146,14 +148,14 @@ pub async fn export(
         .into_response())
 }
 
-/// 库里出的错在流中间只能变成 io 错误——响应头已经发出去了，改不了状态码。
+/// A KB-side error mid-stream can only become an io error — the response headers already went out, the status code can't change.
 fn io(e: AppError) -> std::io::Error {
     tracing::error!(error = %e, "导出中断");
     std::io::Error::other(e.to_string())
 }
 
-/// 文件名用的短名。ASCII 之外的字符不进 Content-Disposition 的 filename，
-/// 中文库名会在那里变成一串问号
+/// Short name used for the filename. Non-ASCII characters don't belong in the Content-Disposition
+/// filename — a Chinese KB name would turn into a string of question marks there
 fn slug(name: &str) -> String {
     let mut out: String = name
         .chars()

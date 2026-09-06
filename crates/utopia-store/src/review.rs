@@ -1,30 +1,33 @@
 //! **True counts** for the review queue.
 //!
-//! The left-rail badge used to read the length of the array the endpoint returned, and that
-//! endpoint always caps out at 100 — so a knowledge base with 164 low-confidence facts showed
-//! "100" in the UI. Once you cleared those 100, the remaining 64 would surface, looking like
-//! they'd appeared out of nowhere.
+//! The sidebar badge used to read the length of the array the endpoint
+//! returned, and the endpoint always caps that at 100 — so a KB with 164
+//! low-confidence facts showed 100. Clear those 100 and the remaining 64
+//! surface later, looking like they grew out of nowhere.
 //!
-//! **Counting and fetching are two different jobs, and must be kept separate.** Fetching has a
-//! limit (ten per page, page through for the next batch); counting doesn't: `count(*)` runs
-//! against the same WHERE clause as the list, and the same index.
+//! **Counting and fetching are two different jobs and must stay separate.**
+//! Fetching is capped (ten per page, paginate for more); counting isn't:
+//! `count(*)` uses the same WHERE clause as the list, and the same index.
 //!
-//! The eight COUNTs are combined into one query rather than fired as eight separate ones: they
-//! all target the same kb, so one round trip fills the whole left rail at once, whereas
-//! separate requests would make it pop in one item at a time when switching knowledge bases.
+//! The eight COUNTs are folded into one query rather than fired as eight:
+//! they're all against the same kb, so one round trip fills the sidebar at
+//! once, whereas separate requests would make it pop in one row at a time
+//! whenever the KB is switched.
 
 use sqlx::PgPool;
 use utopia_core::models::ReviewCounts;
 use utopia_core::AppResult;
 use uuid::Uuid;
 
-/// Low-confidence threshold. **Shared as one constant with `review_routes`** — writing the
-/// number in two places eventually forks into "badge says 12, drill-in shows 9".
+/// Low-confidence threshold. **Shares one constant with `review_routes`** —
+/// if each site hardcoded its own number, they'd eventually drift into
+/// "badge says 12, clicking in shows 9".
 pub const LOW_CONFIDENCE_BELOW: f32 = 0.75;
 
-/// The criterion for "unconfirmed", written as a SQL fragment shared between `counts` and the
-/// overview (`review_summary`): evidence exists, but every chunk that evidence points to has
-/// been superseded by a newer version. The alias is always `f`.
+/// The "unconfirmed" predicate, written as a SQL fragment shared by `counts`
+/// and the overview (`review_summary`): has evidence, but every chunk that
+/// evidence points to has been superseded by a newer version. The alias is
+/// fixed to `f`.
 pub const UNCONFIRMED_FACT: &str = "EXISTS (SELECT 1 FROM fact_evidence fe WHERE fe.fact_id = f.id)
                AND NOT EXISTS (SELECT 1 FROM fact_evidence fe
                                  JOIN chunks c ON c.id = fe.chunk_id

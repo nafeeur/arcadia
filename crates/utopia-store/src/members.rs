@@ -7,9 +7,9 @@ pub async fn list(pool: &PgPool, workspace_id: Uuid) -> AppResult<Vec<MemberView
     let rows = sqlx::query_as(
         "SELECT m.user_id, u.email, u.display_name, m.role, u.is_admin
          FROM memberships m JOIN users u ON u.id = m.user_id
-         -- Deactivated people no longer appear in the member list (see `users.deactivated_at`).
-         -- The membership row itself is left in place — reactivating an account shouldn't
-         -- require re-adding it to every workspace
+         -- Deactivated users no longer show up in the member list (see
+         -- `users.deactivated_at`). The membership row itself is kept — so
+         -- restoring an account doesn't require re-adding it to every workspace
          WHERE m.workspace_id = $1 AND u.deactivated_at IS NULL
          ORDER BY m.created_at",
     )
@@ -19,7 +19,7 @@ pub async fn list(pool: &PgPool, workspace_id: Uuid) -> AppResult<Vec<MemberView
     Ok(rows)
 }
 
-/// All users in the deployment (the picker for adding a member).
+/// All users in the deployment (the picker used when adding a member).
 pub async fn org_users(pool: &PgPool, org_id: Uuid) -> AppResult<Vec<OrgUser>> {
     let rows = sqlx::query_as(
         "SELECT id, email, display_name, is_admin FROM users
@@ -49,16 +49,17 @@ pub async fn current_role(
     crate::workspaces::role_of(pool, user_id, workspace_id).await
 }
 
-/// Set/add a member's role (upsert). Guard-rail logic lives in the API layer.
+/// Set/add a member's role (upsert). Foolproofing logic lives at the API layer.
 pub async fn set_role(
     pool: &PgPool,
     workspace_id: Uuid,
     user_id: Uuid,
     role: Role,
 ) -> AppResult<()> {
-    // The target user must exist in this organization **and be active** — otherwise a
-    // deactivated account could be added to a workspace while remaining invisible in the
-    // member list (which filters out deactivated users), becoming a grant nobody can discover
+    // The target user must exist in this org **and be active** — otherwise a
+    // deactivated account could be added to the workspace and then be invisible
+    // in the member list (that query filters out deactivated users), turning
+    // into a grant nobody can ever discover
     let exists: Option<(Uuid,)> =
         sqlx::query_as("SELECT id FROM users WHERE id = $1 AND deactivated_at IS NULL")
             .bind(user_id)
@@ -91,14 +92,14 @@ pub async fn remove(pool: &PgPool, workspace_id: Uuid, user_id: Uuid) -> AppResu
     Ok(())
 }
 
-/// Deactivated accounts. **Without this, reactivation is unreachable** — a deactivated person
-/// disappears from every list, so an administrator has no way to get their id, and the
-/// reactivation endpoint needs exactly that id.
+/// Deactivated accounts. **Without this, restoring is unreachable** — a
+/// deactivated user disappears from every list, so the admin has no way to get
+/// their id, and the restore endpoint needs exactly that id.
 ///
-/// Kept as a separate query from [`org_users`] rather than adding an "include deactivated"
-/// flag: the two are read by different consumers (one feeds the member picker, the other a
-/// small section of the admin page), and a boolean parameter would force every call site to
-/// stop and decide which one it wants.
+/// Kept as a separate query from [`org_users`] rather than an "include
+/// deactivated" flag: the readers differ (that one feeds the picker, this one
+/// feeds a corner of the admin page), and a boolean parameter would force both
+/// call sites to stop and think about which one they want.
 pub async fn deactivated_users(pool: &PgPool, org_id: Uuid) -> AppResult<Vec<OrgUser>> {
     Ok(sqlx::query_as(
         "SELECT id, email, display_name, is_admin FROM users

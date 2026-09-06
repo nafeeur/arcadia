@@ -1,19 +1,20 @@
-//! Entry point for integration tests that connect to a database (#248).
+//! Entry point for integration tests that hit the database (#248).
 //!
-//! Every database test starts with the same line: skip rather than fail when
-//! `UTOPIA_DATABASE_URL` isn't set, so a casual local `cargo test` doesn't require a database
-//! to be running first. But CI can skip the same way, and then green becomes a lie: the
-//! backend job has no database, so all 24 store integration tests silently return, while the
-//! migrations job (which does have a database) only runs one of them.
+//! Every database-backed test starts with the same line: skip instead of fail when
+//! `UTOPIA_DATABASE_URL` isn't set, so a casual local `cargo test` doesn't need the
+//! database running first. But skip that way on CI too and green becomes fake: the
+//! backend job has no database, all 24 store integration tests silently return early,
+//! and the migrations job that does have a database only runs one.
 //!
-//! So skipping has to depend on context: wherever `UTOPIA_TEST_REQUIRE_DB` is set (CI's
-//! database-connected job), no database is a failure — "should have run but didn't" needs to
-//! be visible.
+//! So skipping has to be occasion-dependent: wherever `UTOPIA_TEST_REQUIRE_DB` is set
+//! (CI's database job), no database means failure — "should have run but didn't" has
+//! to be visible.
 
-/// Database URL for database-backed tests. `None` = skip this run.
+/// The database URL for database-backed tests. `None` = skip this run.
 ///
-/// Panics if `UTOPIA_TEST_REQUIRE_DB` is set but there's no URL: this is for CI — there,
-/// skipping would mean the test never ran at all, and that must not show up green.
+/// Panics if `UTOPIA_TEST_REQUIRE_DB` is set but there's no URL: that's for CI's
+/// benefit — there, skipping means the test never ran at all, and that must not show
+/// as green.
 pub fn url() -> Option<String> {
     match std::env::var("UTOPIA_DATABASE_URL") {
         Ok(u) if !u.trim().is_empty() => Some(u),
@@ -24,7 +25,7 @@ pub fn url() -> Option<String> {
                 );
             }
             eprintln!(
-                "Skipping: UTOPIA_DATABASE_URL not set (set UTOPIA_TEST_REQUIRE_DB=1 to turn a skip into a failure)"
+                "跳过：未设 UTOPIA_DATABASE_URL（设 UTOPIA_TEST_REQUIRE_DB=1 让跳过变成失败）"
             );
             None
         }

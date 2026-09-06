@@ -1,9 +1,11 @@
-//! Trino（旧名 Presto）：REST 协议 `POST /v1/statement`，然后沿 `nextUri` 一页页取。
-//! 一个引擎顶起整个湖仓——Iceberg / Delta / Hive / Hudi 都是它的 catalog，
-//! 换格式不换协议。Starburst 同协议。
+//! Trino (formerly Presto): REST protocol, `POST /v1/statement`, then paged
+//! through page by page via `nextUri`. One engine covers the whole
+//! lakehouse -- Iceberg / Delta / Hive / Hudi are all just its catalogs;
+//! the format changes, the protocol doesn't. Starburst speaks the same protocol.
 //!
-//! 没有会话可设只读：超时靠 `X-Trino-Session: query_max_execution_time`，
-//! 只读靠 `guard_sql_for`。
+//! No session-level read-only: the timeout comes from
+//! `X-Trino-Session: query_max_execution_time`, and read-only comes from
+//! `guard_sql_for`.
 
 use super::conn::TrinoConn;
 use super::{
@@ -72,7 +74,8 @@ impl TrinoEngine {
         Ok(h)
     }
 
-    /// 提交并沿 nextUri 收完：列在第一个带 columns 的页上，数据分页累积
+    /// Submit and drain nextUri to completion: columns arrive on the first page
+    /// that has them, data accumulates page by page
     async fn run(&self, sql: &str) -> anyhow::Result<(Vec<String>, Vec<Vec<serde_json::Value>>)> {
         let client = super::http()?;
         let headers = self.headers()?;
@@ -161,7 +164,7 @@ impl QueryEngine for TrinoEngine {
     }
 }
 
-/// information_schema 的一行 → SchemaColumn（值可能是 null，comment 常是）
+/// One row of information_schema -> SchemaColumn (a value can be null, comment often is)
 pub(crate) fn schema_row(row: Vec<serde_json::Value>) -> SchemaColumn {
     let text = |i: usize| -> String {
         row.get(i)
@@ -188,13 +191,15 @@ mod live_tests {
     use super::super::QueryEngine;
     use super::TrinoEngine;
 
-    /// 对着真 Trino 跑的那一档。没有 `UTOPIA_TEST_TRINO_URL` 就跳过——
-    /// wiremock 回放证得了协议分页与列序，证不了「真集群的 information_schema
-    /// 长这样、REST 一页页取回来的值解得对」。这两样只有真服务器有答案。
+    /// The tier that runs against a real Trino. Skipped without
+    /// `UTOPIA_TEST_TRINO_URL` -- wiremock playback proves protocol paging and
+    /// column order, but it can't prove "the real cluster's information_schema
+    /// looks like this, and the values paged back over REST parse correctly."
+    /// Only a real server can answer those two.
     ///
-    /// 起一个来跑（内置 tpch 目录，数据现成、schema 固定）：
+    /// Spin one up to run it (built-in tpch catalog, data ready-made, schema fixed):
     /// `docker run -d -p 8080:8080 trinodb/trino`
-    /// 然后 `UTOPIA_TEST_TRINO_URL=trino://probe@127.0.0.1:8080/tpch/tiny`。
+    /// then `UTOPIA_TEST_TRINO_URL=trino://probe@127.0.0.1:8080/tpch/tiny`.
     fn live_url() -> Option<String> {
         std::env::var("UTOPIA_TEST_TRINO_URL")
             .ok()
@@ -209,8 +214,9 @@ mod live_tests {
         let engine = TrinoEngine::new(TrinoConn::parse(&url).expect("parse url"));
         engine.test().await.expect("SELECT 1");
 
-        // fetch_schema 打的是 "<catalog>".information_schema.columns——列名与写法
-        // 只有真集群能证。schema 段限定了范围（tpch 有许多 sfN，只取 tiny）
+        // fetch_schema hits "<catalog>".information_schema.columns -- only a real
+        // cluster can prove the column names and syntax. The schema segment scopes
+        // it (tpch has many sfN scales; this takes only tiny)
         let schema = engine.fetch_schema().await.expect("schema");
         let name = schema
             .iter()
@@ -223,8 +229,9 @@ mod live_tests {
             name.data_type
         );
 
-        // 取值往返：QUEUED → nextUri 一页页取，直到拿到 data。tpch.tiny.region
-        // 是 TPC-H 标准表，五行、内容固定，正好当判据
+        // Round-trip a value: QUEUED -> paged through nextUri until data arrives.
+        // tpch.tiny.region is a standard TPC-H table, five fixed rows, which makes
+        // a convenient assertion target
         let r = engine
             .execute("SELECT regionkey, name FROM tpch.tiny.region ORDER BY regionkey")
             .await
@@ -236,7 +243,8 @@ mod live_tests {
         let last: serde_json::Value = serde_json::from_str(&r.rows[4]).unwrap();
         assert_eq!(last["name"], serde_json::json!("MIDDLE EAST"));
 
-        // 写路径仍被闸挡住（第 1 层），与 mysql 那档对称
+        // The write path is still blocked at the gate (layer 1), symmetric with
+        // the mysql tier
         assert!(super::super::guard_sql_for("trino", "DROP TABLE tpch.tiny.region").is_err());
     }
 }

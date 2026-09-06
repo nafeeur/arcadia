@@ -16,8 +16,8 @@ pub struct SearchReq {
     pub q: String,
     #[serde(default)]
     pub top_k: Option<usize>,
-    /// Record axis (0019): search **what the base had at that moment**. YYYY-MM-DD or RFC3339.
-    /// Hits are chunks alive then, in documents not yet deleted then.
+    /// Record axis (0019): retrieve against **what was in the KB at that moment**. YYYY-MM-DD or RFC3339.
+    /// Hits are chunks that were alive then, documents not yet deleted then
     #[serde(default)]
     pub as_of: Option<String>,
 }

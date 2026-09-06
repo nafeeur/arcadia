@@ -16,7 +16,7 @@ pub async fn list_for_user(pool: &PgPool, user_id: Uuid) -> AppResult<Vec<Worksp
     Ok(rows)
 }
 
-/// Creates a new workspace within the user's organization; the creator becomes owner.
+/// Create a new workspace within the user's organization; the creator becomes owner.
 pub async fn create(
     pool: &PgPool,
     org_id: Uuid,
@@ -49,7 +49,7 @@ pub async fn get(pool: &PgPool, id: Uuid) -> AppResult<Workspace> {
         .ok_or(AppError::NotFound)
 }
 
-/// Gets the user's role in the workspace; returns None for non-members.
+/// Get the user's role in the workspace; returns None for non-members.
 pub async fn role_of(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> AppResult<Option<Role>> {
     let role: Option<(String,)> =
         sqlx::query_as("SELECT role FROM memberships WHERE user_id = $1 AND workspace_id = $2")
@@ -60,7 +60,7 @@ pub async fn role_of(pool: &PgPool, user_id: Uuid, workspace_id: Uuid) -> AppRes
     Ok(role.and_then(|(r,)| Role::parse(&r)))
 }
 
-/// Permission check: non-member -> NotFound (does not leak existence); insufficient role -> Forbidden.
+/// Permission check: non-member -> NotFound (doesn't leak existence); insufficient role -> Forbidden.
 pub async fn require_role(
     pool: &PgPool,
     user_id: Uuid,

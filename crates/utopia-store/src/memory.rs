@@ -1,13 +1,15 @@
 //! Agent/conversation memory: the episodes fast path.
 //!
-//! Design (zero new wheels): the memory space is the knowledge base itself; each episode is a
-//! chunk appended to a "Memory log" document under an implicit "Memory" source (the text
-//! embeds a timestamp line for when the event occurred). This reuses the entire pipeline:
-//! chunks enter the full-text/vector index (memories are searchable), fact_evidence points at
-//! chunks (memory-derived facts trace back to the original words), incremental extraction via
-//! extracted_at only processes new episodes, a fact's valid_from takes the event time, and the
-//! temporal engine automatically closes out conflicts with existing functional facts —
-//! "liked A last month, switched to B this month" naturally becomes two intervals. Ledger
+//! Design (zero new wheels): the memory space *is* the knowledge base itself;
+//! each episode is a chunk appended to the "Memory log" document under an
+//! implicit "Memory" source (with the event timestamp embedded as a line in
+//! the text). This reuses the whole pipeline for free: the chunk enters
+//! full-text/vector indexing (memory becomes searchable), fact_evidence points
+//! at the chunk (memory-derived facts trace back to the original words),
+//! incremental extraction only processes new episodes via extracted_at, a
+//! fact's valid_from takes the event time, and the temporal engine
+//! auto-closes contradictions with existing functional facts — "liked A last
+//! month, switched to B this month" naturally becomes two intervals. Ledger
 //! discipline: episodes are append-only, never rewritten.
 
 use chrono::{DateTime, Utc};
@@ -18,8 +20,8 @@ use uuid::Uuid;
 pub const MEMORY_SOURCE_KIND: &str = "memory";
 const MEMORY_DOC_KEY: &str = "memory:log";
 
-/// The implicit Memory source per KB (cannot be deleted; visible in Library — memory
-/// transparency is a feature).
+/// The implicit Memory source per KB (undeletable; visible in the Library —
+/// memory transparency is a feature).
 pub async fn get_or_create_memory_source(pool: &PgPool, kb_id: Uuid) -> AppResult<Uuid> {
     if let Some((id,)) = sqlx::query_as::<_, (Uuid,)>(
         "SELECT id FROM sources WHERE kb_id = $1 AND kind = $2 LIMIT 1",
@@ -43,8 +45,9 @@ pub async fn get_or_create_memory_source(pool: &PgPool, kb_id: Uuid) -> AppResul
     Ok(id)
 }
 
-/// The Memory log document (one per KB). Bypasses `documents::create`'s same-content
-/// deduplication — it isn't a content-addressed file, so sha256 is filled with a sentinel value.
+/// The Memory log document (one per KB). Bypasses documents::create's
+/// same-content dedup — it isn't a content-addressed file, so sha256 is
+/// filled with a sentinel value.
 pub async fn get_or_create_memory_doc(pool: &PgPool, kb_id: Uuid) -> AppResult<Uuid> {
     if let Some((id,)) = sqlx::query_as::<_, (Uuid,)>(
         "SELECT id FROM documents
@@ -75,9 +78,10 @@ pub async fn get_or_create_memory_doc(pool: &PgPool, kb_id: Uuid) -> AppResult<U
     Ok(id)
 }
 
-/// Appends one episode: a new chunk (extracted_at empty -> incremental extraction will pick it
-/// up; embedding empty -> memory_ingest will fill it in). The event time is embedded in the
-/// first line of the text, and the extraction model derives valid_from from it.
+/// Append an episode: a new chunk (extracted_at empty -> incremental
+/// extraction will pick it up; embedding empty -> memory_ingest will fill it
+/// in). The event time is embedded in the first line of the text, and the
+/// extraction model uses it to set valid_from.
 pub async fn append_episode(
     pool: &PgPool,
     kb_id: Uuid,
@@ -116,11 +120,12 @@ pub async fn append_episode(
 
 /// Whether this document is the memory log.
 ///
-/// **Extraction uses this to decide whether a fact needs a human nod** (0015): a memory is a
-/// sentence a person deliberately said in conversation, one at a time, with the person right
-/// there — confirmation cost is at its lowest. An ingested document arrives tens of thousands
-/// of facts at a time, where confirming each one individually is impossible, so that path still
-/// writes optimistically and reviews after the fact.
+/// **Extraction uses this to decide whether a fact needs human sign-off**
+/// (0015): a memory is a sentence someone deliberately said in conversation —
+/// one at a time, with the person right there, so confirming it costs almost
+/// nothing; whereas an ingested document brings in tens of thousands at once,
+/// where confirming each one is impossible, so that path still goes with
+/// optimistic write plus after-the-fact review.
 pub async fn is_memory_document(pool: &PgPool, document_id: Uuid) -> AppResult<bool> {
     let found: Option<(i32,)> = sqlx::query_as(
         "SELECT 1 FROM documents d JOIN sources s ON s.id = d.source_id

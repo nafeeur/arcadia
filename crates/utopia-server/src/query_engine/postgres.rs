@@ -1,5 +1,6 @@
-//! The Postgres family (also covers PG-compatible systems like Greenplum / Timescale). Connects
-//! directly over the wire protocol, and is the only one of the four engines whose session can be set read-only.
+//! Postgres family (also covers Greenplum / Timescale and other PG-compatible
+//! systems). Connects directly over the wire protocol; the only one of the four
+//! engines whose session can be set read-only.
 
 use super::{QueryEngine, QueryResult, SchemaColumn, ROW_CAP, STATEMENT_TIMEOUT_SECS};
 use sqlx::postgres::PgPoolOptions;
@@ -65,7 +66,8 @@ impl QueryEngine for PostgresEngine {
 
     async fn execute(&self, sql: &str) -> anyhow::Result<QueryResult> {
         let pool = self.pool().await?;
-        // Defense-in-depth layer 3: session-level read-only + timeout (even if something slips past the parser, it still can't write, or hang the database)
+        // Defense-in-depth layer 3: session-level read-only + timeout (even if a write
+        // slips past the parser it can't land, and it can't hang the database)
         sqlx::query("SET default_transaction_read_only = on")
             .execute(&pool)
             .await?;
@@ -74,7 +76,8 @@ impl QueryEngine for PostgresEngine {
         ))
         .execute(&pool)
         .await?;
-        // Layer 2: delegate the LIMIT; row_to_json lets PG handle the type-to-JSON conversion entirely (the text key order preserves column order)
+        // Layer 2: LIMIT delegated outward; row_to_json lets PG own the type -> JSON
+        // conversion entirely (the text key order preserves column order)
         let wrapped = format!(
             "SELECT row_to_json(_q)::text AS _j FROM ( {sql} ) AS _q LIMIT {}",
             ROW_CAP + 1

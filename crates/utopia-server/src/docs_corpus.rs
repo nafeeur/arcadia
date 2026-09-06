@@ -1,10 +1,11 @@
 //! Charter corpus: the same batch of markdown as the frontend Docs page (single source of
-//! truth, upgraded together with the binary).
-//! Adding an article = one line in the frontend Docs.tsx listing + one line in ARTICLES here.
+//! truth, upgraded along with the binary).
+//! Adding an article = one line in the frontend Docs.tsx manifest + one line in ARTICLES here.
 
 use utopia_search::{DocsIndex, DocsSection};
 
-/// (slug, title, body). slug must match the frontend DOCS listing exactly (otherwise reference links to /docs/{slug} won't line up).
+/// (slug, title, body). slug must match the frontend DOCS manifest (so reference links
+/// /docs/{slug} resolve correctly).
 const ARTICLES: &[(&str, &str, &str)] = &[
     (
         "arcadia",
@@ -23,14 +24,16 @@ const ARTICLES: &[(&str, &str, &str)] = &[
     ),
 ];
 
-/// Builds the index at startup; the corpus is a compile-time constant, so a failure here is a program bug — die loudly.
+/// Builds the index at startup; the corpus is a compile-time constant, so failure is a
+/// programming error — die loudly.
 pub fn build_index() -> DocsIndex {
-    DocsIndex::build(&sections()).expect("Charter docs index build failed")
+    DocsIndex::build(&sections()).expect("Charter 文档索引构建失败")
 }
 
-/// Splits by h2: one index record per section, so a hit returns the specific section rather
-/// than the whole article. The preamble before the first h2 becomes the "title section"
-/// (empty anchor, link lands at the top of the article).
+/// Splits into sections by h2: one index record per section, so a hit returns the specific
+/// subsection rather than the whole article.
+/// The preamble before the first h2 is filed under the "title section" (empty anchor, link
+/// lands at the top of the article).
 fn sections() -> Vec<DocsSection> {
     let mut out = Vec::new();
     for (slug, title, body) in ARTICLES {
@@ -65,9 +68,9 @@ fn sections() -> Vec<DocsSection> {
     out
 }
 
-/// Matches the frontend Docs.tsx's slugify character-for-character (anchor navigation depends
-/// on both sides agreeing): lowercase, then any run outside [a-z0-9一-龥] collapses to
-/// a single '-', then leading/trailing '-' are stripped.
+/// Character-for-character aligned with the frontend Docs.tsx slugify (anchor navigation
+/// depends on both sides matching): after lowercasing, any run outside [a-z0-9一-龥] collapses
+/// to a single '-', then leading/trailing '-' are stripped.
 fn slugify(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut dash = false;
@@ -108,7 +111,7 @@ mod tests {
     #[test]
     fn ingest_splits_into_sections() {
         let secs = sections();
-        assert!(secs.len() >= 4, "ingest.md should split into a preamble + 3 or more sections");
+        assert!(secs.len() >= 4, "ingest.md 应切出引言 + 3 个以上小节");
         assert!(secs.iter().any(|s| s.anchor == "shared-semantics"));
         // Preamble section: empty anchor, heading uses the article title
         assert!(secs

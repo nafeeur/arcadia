@@ -1,18 +1,19 @@
-//! 人拍过板的类型，引擎不许改——打在真库上。
+//! Types a human has ruled on — the engine may not change them. Runs against a real database.
 //!
-//! 这一整条防线活在 SQL 的 `WHERE` 子句里：三处读侧各加一句
-//! `type_source <> 'human'`，漏一处就是静默失效。`cargo check` 一个字看不见，
-//! 而 0009 刚在同一片区域踩过 `NULL <> uuid` 的坑——类型系统数得清 Rust，
-//! 数不到 SQL 里去。
+//! This entire line of defense lives in SQL `WHERE` clauses: three read sites
+//! each need a `type_source <> 'human'` clause, and missing one is a silent
+//! failure. `cargo check` sees none of it, and 0009 just tripped over the
+//! `NULL <> uuid` pitfall in this exact area — the type system counts for
+//! Rust, not for SQL.
 //!
-//! 四条断言对应四条路径：
+//! Four assertions, four paths:
 //!
-//! - 类型消解取材（`entities_for_type_resolution`）不该捞人拍过板的
-//! - 本体长出新类后的认领（`adopt_proposed_types`）不该盖掉人拍过板的
-//! - 抽取升格不该给「人说过就是没有类型」的实体安一个类型 ← 0009 × P4 的交叉
-//! - `retype_entities` 用现成的 `actor` 参数区分 human / inferred
+//! - Type resolution sourcing (`entities_for_type_resolution`) must not pick up entities a human has ruled on
+//! - Adoption after the ontology grows a new class (`adopt_proposed_types`) must not overwrite a human's ruling
+//! - Extraction upgrades must not assign a type to an entity a human has decided has none ← the 0009 x P4 intersection
+//! - `retype_entities` uses its existing `actor` parameter to tell human from inferred
 //!
-//! 没有 `UTOPIA_DATABASE_URL` 时跳过而不是失败。自建自拆，绝不碰已有的库。
+//! Skipped, not failed, when `UTOPIA_DATABASE_URL` is unset. Builds and tears down its own data — never touches an existing database.
 
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -24,8 +25,8 @@ struct Fx {
     sub_type: Uuid,
 }
 
-/// 造一个刚好能触发「第三种取材条件」的本体：`organization` 有子类 `startup`。
-/// 人把实体定成 `organization` 之后，正是这个子类让它够格被重判。
+/// Builds an ontology that just barely triggers the "third sourcing condition": `organization` has a subclass `startup`.
+/// Once a human has set an entity to `organization`, it's this subclass that makes it eligible for re-judgment.
 async fn seed(pool: &PgPool) -> anyhow::Result<Fx> {
     let (org, ws, kb) = (Uuid::now_v7(), Uuid::now_v7(), Uuid::now_v7());
     let (org_type, sub_type) = (Uuid::now_v7(), Uuid::now_v7());
@@ -96,7 +97,7 @@ async fn source_of(pool: &PgPool, id: Uuid) -> anyhow::Result<String> {
     )
 }
 
-/// 主战场：取材条件里的「现类还有子类就纳入」会把人拍过板的实体一并捞回来。
+/// Main battleground: the sourcing condition's "include if the current type has subclasses" would also sweep up entities a human has already ruled on.
 #[tokio::test]
 async fn type_resolution_leaves_human_decisions_alone() -> anyhow::Result<()> {
     let Some(url) = utopia_store::test_db::url() else {
@@ -132,10 +133,11 @@ async fn type_resolution_leaves_human_decisions_alone() -> anyhow::Result<()> {
     run
 }
 
-/// 本体长出新类之后的认领，同样不该盖掉人的决定。
+/// Adoption after the ontology grows a new class must likewise not overwrite a human's decision.
 ///
-/// 这一条顺带保证了 `unadopt_types` 的正确性：human 行永远不进采纳批次，
-/// 撤销时也就不会遇到它们，不必额外还原 `type_source`。
+/// This also incidentally guarantees `unadopt_types` is correct: human rows never enter
+/// the adoption batch, so undoing one never encounters them — no need to separately
+/// restore `type_source`.
 #[tokio::test]
 async fn adopting_a_new_class_does_not_claim_human_typed_entities() -> anyhow::Result<()> {
     let Some(url) = utopia_store::test_db::url() else {
@@ -145,7 +147,7 @@ async fn adopting_a_new_class_does_not_claim_human_typed_entities() -> anyhow::R
     let f = seed(&pool).await?;
 
     let run = async {
-        // 两个实体都被模型提议过 startup，但一个的类型是人定的
+        // Both entities were proposed as startup by the model, but one has a human-set type
         for (name, source) in [("Acme", "human"), ("Globex", "extracted")] {
             let id = entity(&pool, &f, name, Some(f.org_type), source).await?;
             sqlx::query("UPDATE entities SET proposed_type = 'startup' WHERE id = $1")
@@ -182,11 +184,12 @@ async fn adopting_a_new_class_does_not_claim_human_typed_entities() -> anyhow::R
     run
 }
 
-/// **0009 × P4 的交叉，最容易漏的一条。**
+/// **The 0009 x P4 intersection, the easiest one to miss.**
 ///
-/// 0009 之后「没有类型」可能是人的决定——他看过这个实体，认为本体里没有合适的类。
-/// 而抽取升格的守卫原本只看 `type_key.is_none()`，分不出「还没判」和「人判了，
-/// 就是没有」，于是下一次抽取会给它安一个类型。
+/// After 0009, "no type" can be a human decision — they looked at the entity and decided
+/// no class in the ontology fits. But extraction upgrade's guard originally only checked
+/// `type_key.is_none()`, which can't tell "not judged yet" from "a human judged it and
+/// decided there is none" — so the next extraction pass would assign it a type anyway.
 #[tokio::test]
 async fn extraction_does_not_fill_in_a_type_a_human_left_empty() -> anyhow::Result<()> {
     let Some(url) = utopia_store::test_db::url() else {
@@ -196,13 +199,15 @@ async fn extraction_does_not_fill_in_a_type_a_human_left_empty() -> anyhow::Resu
     let f = seed(&pool).await?;
 
     let run = async {
-        // 人看过它，认为本体里没有合适的类 → 没有类型，且这是个决定
+        // A human looked at it and decided no class in the ontology fits -> no type, and it's a decision
         let decided = entity(&pool, &f, "Ambiguous Thing", None, "human").await?;
-        // 还没轮到判的那个
+        // Not judged yet
         let pending = entity(&pool, &f, "Other Thing", None, "extracted").await?;
 
-        // **升格分支要画像相似度才走得到**：ctx 为空时 best 是 None，整段被跳过。
-        // 第一版就是这么写的，撤掉守卫也没有测试失败——测试没测到它要测的东西
+        // **The upgrade branch only runs when there's a profile similarity to compare**:
+        // with an empty ctx, best is None and the whole block is skipped. The first
+        // version was written this way — removing the guard made no test fail, because
+        // the test wasn't exercising what it claimed to test
         let ctx: Vec<f32> = vec![1.0, 0.0, 0.0];
         for id in [decided, pending] {
             sqlx::query(
@@ -214,7 +219,7 @@ async fn extraction_does_not_fill_in_a_type_a_human_left_empty() -> anyhow::Resu
             .await?;
         }
 
-        // 抽取再次遇到同名 mention，判出 organization。余弦 = 1.0，远高于 SIM_ATTACH
+        // Extraction encounters the same-named mention again and resolves it to organization. Cosine = 1.0, well above SIM_ATTACH
         for id in [decided, pending] {
             let name: String =
                 sqlx::query_scalar("SELECT canonical_name FROM entities WHERE id = $1")
@@ -233,7 +238,7 @@ async fn extraction_does_not_fill_in_a_type_a_human_left_empty() -> anyhow::Resu
             .await?;
         }
 
-        // 对照：没有人拍过板的那个**应该**被升格，否则这个测试证明不了守卫在起作用
+        // Control: the one nobody has ruled on **should** be upgraded, otherwise this test can't prove the guard is doing anything
         let after_pending: Option<Uuid> =
             sqlx::query_scalar("SELECT type_id FROM entities WHERE id = $1")
                 .bind(pending)
@@ -266,8 +271,9 @@ async fn extraction_does_not_fill_in_a_type_a_human_left_empty() -> anyhow::Resu
     run
 }
 
-/// `retype_entities` 用现成的 `actor` 参数区分来源：人点的批准是背书，受保护；
-/// 引擎自动裁决的不是。不必为此加新参数——#112 加 actor 时它就已经在那儿了。
+/// `retype_entities` uses its existing `actor` parameter to distinguish source: a human's
+/// approval click is an endorsement and is protected; the engine's automatic ruling isn't.
+/// No new parameter needed for this — it was already there when #112 added actor.
 #[tokio::test]
 async fn who_approved_a_retype_decides_whether_it_is_protected() -> anyhow::Result<()> {
     let Some(url) = utopia_store::test_db::url() else {
@@ -310,15 +316,17 @@ async fn who_approved_a_retype_decides_whether_it_is_protected() -> anyhow::Resu
     run
 }
 
-/// **引擎改过的实体,下一轮还要捞得回来。**
+/// **An entity the engine has retyped must still be pickable up next round.**
 ///
-/// 这一条守的是一个真出过的事故:类型消解落库时把「点运行的那个人」当成了
-/// `retype_entities` 的 actor,而有 actor 就写 `type_source = 'human'`。
-/// 于是**跑过一次消解的实体从此永远不再被消解**——一个没有任何人工 PATCH 记录
-/// 的库,跑完一轮之后预览返回空列表,而且没有任何报错。
+/// This guards against a real incident: when persisting type resolution, "the person who
+/// clicked run" was passed as the `actor` for `retype_entities`, and having an actor meant
+/// writing `type_source = 'human'`. So **an entity that had gone through resolution once
+/// would never be resolved again** — a database with no manual PATCH records at all would,
+/// after one run, return an empty preview list on the next, with no error at all.
 ///
-/// 「谁点的运行」与「谁判定这个实体是什么」是两件事。前者记在
-/// `ontology.types_resolved` 审计里,后者才该决定 `type_source`。
+/// "Who clicked run" and "who decided what this entity is" are two different things. The
+/// former belongs in the `ontology.types_resolved` audit log; only the latter should decide
+/// `type_source`.
 #[tokio::test]
 async fn an_engine_retype_does_not_lock_the_entity_out_of_the_next_round() -> anyhow::Result<()> {
     let Some(url) = utopia_store::test_db::url() else {
@@ -329,13 +337,14 @@ async fn an_engine_retype_does_not_lock_the_entity_out_of_the_next_round() -> an
 
     let run = async {
         let e = entity(&pool, &f, "Initech", Some(f.org_type), "extracted").await?;
-        // 留一个 specific_type:让它在「取材条件」上始终够格,这样落选与否
-        // 只取决于 type_source——否则改成叶子类之后它本来就该落选,测不出东西
+        // Keep a specific_type: makes it perpetually eligible under the sourcing condition,
+        // so exclusion depends only on type_source — otherwise it would already be excluded
+        // once retyped to a leaf class, and this test would prove nothing
         sqlx::query("UPDATE entities SET specific_type = 'startup company' WHERE id = $1")
             .bind(e)
             .execute(&pool)
             .await?;
-        // 引擎自动裁决:没有人为这一条背书
+        // Engine's automatic ruling: no human endorsed this one
         utopia_store::resolution::retype_entities(&pool, f.kb, &[(e, f.sub_type)], None).await?;
 
         assert_eq!(

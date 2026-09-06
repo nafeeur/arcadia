@@ -1,6 +1,5 @@
-/* Tooltip: Radix Tooltip. For things with no visible text (icon buttons, truncated
-   names, a bare number); a button with a visible label doesn't need it. Native
-   `title` waits a second and styles itself per the OS — this one doesn't. */
+/* Tooltip: Radix Tooltip. For things with no visible text (icon buttons, truncated names, a bare number);
+   buttons with a visible label don't need it. Native `title` waits a second and styles per-OS — this doesn't. */
 import { Tooltip as RadixTooltip } from "radix-ui";
 import type { ReactNode } from "react";
 
@@ -11,7 +10,7 @@ export function Tooltip({
 }: {
   content: ReactNode;
   side?: "top" | "bottom" | "left" | "right";
-  /** Trigger element; must be able to receive a ref and events (Button / IconButton / a native element all work) */
+  /** The trigger element; must accept a ref and events (Button / IconButton / a native element all work) */
   children: ReactNode;
 }) {
   return (

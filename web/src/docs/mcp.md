@@ -60,7 +60,7 @@ The Review card names the agent, not only the person: several clients can share 
 List the tools:
 
 ```bash
-curl -s -X POST https://your-arcadia/api/v1/kbs/$KB/mcp \
+curl -s -X POST https://your-utopia/api/v1/kbs/$KB/mcp \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
@@ -68,12 +68,12 @@ curl -s -X POST https://your-arcadia/api/v1/kbs/$KB/mcp \
 Search, then read the whole document the best hit came from:
 
 ```bash
-curl -s -X POST https://your-arcadia/api/v1/kbs/$KB/mcp \
+curl -s -X POST https://your-utopia/api/v1/kbs/$KB/mcp \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call",
        "params":{"name":"search_chunks","arguments":{"query":"Series C target"}}}'
 
-curl -s -X POST https://your-arcadia/api/v1/kbs/$KB/mcp \
+curl -s -X POST https://your-utopia/api/v1/kbs/$KB/mcp \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call",
        "params":{"name":"get_document","arguments":{"document_id":"<id from the hit>"}}}'
@@ -88,8 +88,8 @@ Most MCP clients accept a remote server as a URL plus headers. For a client that
 ```json
 {
   "mcpServers": {
-    "arcadia-general": {
-      "url": "https://your-arcadia/api/v1/kbs/<kb_id>/mcp",
+    "utopia-general": {
+      "url": "https://your-utopia/api/v1/kbs/<kb_id>/mcp",
       "headers": { "Authorization": "Bearer utp_pat_…" }
     }
   }

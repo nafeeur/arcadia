@@ -1,14 +1,16 @@
-//! 合并也倒得回去（0019 第二刀 / #336），打在真库上。
+//! Merges must rewind too (0019 second cut / #336), run against a real database.
 //!
-//! 合并是**原地改写**：`UPDATE facts SET subject_id = target`。行上只剩合并之后的
-//! 样子，所以「三月那天这条事实挂在谁身上」既不在事实行里、也不在实体行里——
-//! 只在 `entity_merges` 的数组里。这个测试打的就是那条映射。
+//! A merge is **an in-place rewrite**: `UPDATE facts SET subject_id = target`. The row
+//! only keeps the shape it had after the merge, so "who this fact hung on that day in
+//! March" lives neither in the fact row nor the entity row — only in the `entity_merges`
+//! array. This test is exactly about that mapping.
 //!
-//! 三个时刻，因为它们各自会以不同的方式坏掉：
-//! - **合并之前**：被并掉的实体要重新长出来，且带着它自己的那些事实
-//! - **一次已撤销的合并的窗口之内**：那段时间它们**确实**是一个——撤销把行搬回去了，
-//!   当前行里看不见这件事，只能从数组里读出来
-//! - **现在**：一切照旧，且不能因为加了映射就变慢或变样
+//! Three points in time, because each breaks in a different way:
+//! - **Before the merge**: the swallowed entity has to grow back, carrying its own facts
+//! - **Within the window of a merge that was later reverted**: for that stretch they
+//!   **really were** one entity — the revert moved the rows back, so the current rows
+//!   show none of it; it can only be read from the array
+//! - **Now**: everything as usual, and adding the mapping must not slow it down or change it
 
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -20,11 +22,11 @@ fn t(s: &str) -> chrono::DateTime<chrono::Utc> {
 struct Fixture {
     org: Uuid,
     kb: Uuid,
-    /// 留下的那个
+    /// The one that survives
     zhang_a: Uuid,
-    /// 四月被并进 A，至今仍并着
+    /// Merged into A in April, still merged
     zhang_b: Uuid,
-    /// 五月被并进 A，六月又撤销了
+    /// Merged into A in May, reverted in June
     zhang_c: Uuid,
     fact_a: Uuid,
     fact_b: Uuid,
@@ -74,7 +76,7 @@ async fn seed(pool: &PgPool) -> anyhow::Result<Fixture> {
     .bind(kb)
     .execute(pool)
     .await?;
-    // 实体的出生时刻也倒着看：一月的图上它们还不存在
+    // Entity birth times are also viewed retroactively: on January's graph they don't exist yet
     for (id, type_id, name) in [
         (acme, company, "Acme"),
         (zenith, company, "Zenith"),
@@ -114,12 +116,13 @@ async fn seed(pool: &PgPool) -> anyhow::Result<Fixture> {
         .await?;
     }
 
-    // 四月：B 并进 A，至今仍并着
+    // April: B merges into A, still merged
     utopia_store::resolution::merge_entities(pool, kb, zhang_b, zhang_a, None, "test").await?;
     backdate(pool, zhang_b, "2026-04-01T00:00:00Z", None).await?;
 
-    // 五月：C 并进 A；六月撤销。**撤销把事实搬回去了**，所以现在的行上看不出
-    // 五月到六月之间它们曾是一个——那段窗口只在 entity_merges 里
+    // May: C merges into A; reverted in June. **The revert moved the facts back**, so
+    // the current rows show no trace that they were one entity between May and June —
+    // that window only lives in entity_merges
     let merge_c =
         utopia_store::resolution::merge_entities(pool, kb, zhang_c, zhang_a, None, "test").await?;
     backdate(pool, zhang_c, "2026-05-01T00:00:00Z", None).await?;
@@ -144,7 +147,7 @@ async fn seed(pool: &PgPool) -> anyhow::Result<Fixture> {
     })
 }
 
-/// 合并的时刻由 `now()` 落库，测试要的是确定的日期。
+/// The merge timestamp is stamped by `now()`; the test needs a deterministic date.
 async fn backdate(
     pool: &PgPool,
     source: Uuid,
@@ -197,7 +200,7 @@ async fn a_merged_entity_comes_back_before_the_merge() -> anyhow::Result<()> {
         }
     };
 
-    // 1. 现在：B 并着（不出现），C 已撤销（照常出现）
+    // 1. Now: B is merged (does not appear), C was reverted (appears as usual)
     let (ids, total) = nodes(None).await?;
     assert!(!ids.contains(&f.zhang_b), "仍并着的实体不该出现在画布上");
     assert!(ids.contains(&f.zhang_c), "撤销过的合并不该继续吞掉那个实体");
@@ -211,8 +214,9 @@ async fn a_merged_entity_comes_back_before_the_merge() -> anyhow::Result<()> {
         vec![f.fact_c]
     );
 
-    // 2. 三月：三个张伟各自站着，各自带着自己的那条事实。
-    //    这是这一刀的全部意义——事实行上写的是 A，而三月那天它挂在 B 身上
+    // 2. March: the three Zhang Weis each stand on their own, each with their own fact.
+    //    This is the whole point of this cut — the fact row says A, but on that day in
+    //    March it hung on B
     let (ids, total) = nodes(Some("2026-03-15T00:00:00Z")).await?;
     assert!(ids.contains(&f.zhang_b) && ids.contains(&f.zhang_c));
     assert_eq!(total, 5);
@@ -227,8 +231,9 @@ async fn a_merged_entity_comes_back_before_the_merge() -> anyhow::Result<()> {
         "被并掉的 B 在三月还拿着自己那条事实"
     );
 
-    // 3. 五月中：C 那次合并当时**生效着**（六月才撤销）。撤销已经把行搬回 C，
-    //    所以这一格只能从 entity_merges 的数组里读出来
+    // 3. Mid-May: C's merge was **in effect** at that point (reverted only in June).
+    //    The revert has already moved the row back to C, so this snapshot can only be
+    //    read from the entity_merges array
     let (ids, total) = nodes(Some("2026-05-15T00:00:00Z")).await?;
     assert!(!ids.contains(&f.zhang_c), "五月中 C 正并在 A 里");
     assert!(!ids.contains(&f.zhang_b));
@@ -239,7 +244,8 @@ async fn a_merged_entity_comes_back_before_the_merge() -> anyhow::Result<()> {
         "五月中三条事实都在 A 身上"
     );
 
-    // 4. 一月：实体还没被建出来，图是空的，而不是退化成现在
+    // 4. January: the entities haven't been created yet, the graph is empty — not a
+    //    fallback to the current state
     let (ids, total) = nodes(Some("2026-01-01T00:00:00Z")).await?;
     assert!(ids.is_empty(), "一月这些实体还不存在");
     assert_eq!(total, 0);

@@ -1,29 +1,31 @@
-// 当前工作区/知识库上下文：均可切换且 localStorage 记忆；工作区无 KB 时自动创建 "General"。
+// Current workspace/knowledge-base context: both switchable and remembered in localStorage; a workspace with no KB auto-creates "General".
 import { useCallback, useSyncExternalStore } from "react";
 import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, DEFAULT_ONTOLOGY_PACKS, type Kb, type Workspace } from "./api";
 import { kbStore, wsStore } from "./wsStore";
 
-/** 当前路径里的知识库 id。**页面都在 /kb/$kbId 之下，所以直接从路径取**——
- *  不必等库列表加载完，链接里写的是谁就是谁。不在作用域内（账户页等）时
- *  回落到记忆里的那个。 */
+/** The KB id from the current path. **Every page lives under /kb/$kbId, so read it straight from the path** —
+ *  no need to wait for the KB list to load; whatever the link says, goes. Outside that scope (account pages, etc.)
+ *  fall back to the remembered one. */
 export function useKbId(): string {
   const params = useParams({ strict: false }) as { kbId?: string };
   const { kb } = useKb();
   return params.kbId ?? kb?.id ?? "";
 }
 
-/** 换库落在同一个页面上，但**不带走页面里的东西**。
+/** Switching KB lands on the same page, but **doesn't carry along what's in the page**.
  *
- *  从前是把路径里的 kbId 整个替换掉，于是 `/kb/A/chat/某会话` 变成
- *  `/kb/B/chat/某会话`——会话属于 A，页面拿着它去问 B，得到一个 404 再退回
- *  新对话。单槽的 liveAnswer 曾经把这一步掩住（它不问会话属于谁就认领），
- *  按库键控之后（#259）认领正确地失败，404 就露了出来（#261）。
+ *  It used to just replace the kbId in the path wholesale, so `/kb/A/chat/someConversation` became
+ *  `/kb/B/chat/someConversation` — the conversation belongs to A, the page asks B for it, gets a 404,
+ *  and falls back to a new conversation. The single-slot liveAnswer used to paper over this step (it
+ *  claimed a conversation without asking who owns it); once keyed by KB (#259), the claim correctly
+ *  failed, and the 404 surfaced (#261).
  *
- *  所以只保留 kbId 后面的第一段：chat、graph、library……深一层的会话 id、
- *  文档 id 都是那个库里的东西，换库就该丢掉。文档页本身就是某一篇文档，
- *  换库后落到新库的 Library。不在 /kb 作用域下时保持原行为。 */
+ *  So only the first segment after kbId is kept: chat, graph, library... a conversation id or document
+ *  id one level deeper belongs to that KB, and switching KB should drop it. The document page is itself
+ *  a single document, so after switching it lands on the new KB's Library. Outside /kb scope, behavior
+ *  is unchanged. */
 export function samePageInKb(pathname: string, fromKbId: string, toKbId: string): string {
   const prefix = `/kb/${fromKbId}`;
   if (!pathname.startsWith(prefix)) return pathname.replace(fromKbId, toKbId);
@@ -52,11 +54,13 @@ export function useKb(): {
     queryFn: async () => {
       const existing = await api.kbs(ws!.id);
       if (existing.length > 0) return existing;
-      // 空工作区自动创建 General——建库现在是管理员动作，非管理员会 403：
-      // 静默等管理员来创建（现实中首个用户即管理员，General 总在）。
-      // **带默认本体包。** 从前这里不传 packs，于是一个新部署的第一个库一个类
-      // 都没有，第一批文档抽出来全是未分类实体；建库对话框里那个"默认 schema.org"
-      // 只对第二个库起效。第一个库恰恰是大多数人唯一会用的那个
+      // An empty workspace auto-creates General — creating a KB is now an admin action, a non-admin
+      // gets 403: silently wait for an admin to create it (in practice the first user is admin, so
+      // General is always there).
+      // **Ships with default ontology packs.** This used to not pass packs, so a fresh deployment's
+      // first KB had zero classes, and its first batch of documents came out as entirely uncategorized
+      // entities; the "default schema.org" in the create-KB dialog only took effect for the second KB.
+      // The first KB is exactly the one most people ever use.
       try {
         const created = await api.createKb(ws!.id, {
           name: "General",
@@ -72,27 +76,29 @@ export function useKb(): {
   });
 
   const kbList = kbs.data ?? [];
-  /* **URL 里有就以 URL 为准**：两者回答的不是同一个问题——地址栏说的是
-     "这个链接指向什么"，localStorage 说的是"我上次在看什么"。
-     别人分享的链接必须赢过我自己的记忆，否则打开看到的是我的库、
-     数据不同而界面一模一样 */
+  /* **If the URL has one, the URL wins**: the two answer different questions — the address bar says
+     "what does this link point to", localStorage says "what was I last looking at".
+     A link someone shared with me must beat my own memory, otherwise I open it and see my own KB —
+     different data, identical-looking UI. */
   const routeParams = useParams({ strict: false }) as { kbId?: string };
   const wantedKbId = routeParams.kbId ?? selectedKbId;
   const kb = kbList.find((k) => k.id === wantedKbId) ?? kbList[0] ?? null;
 
-  /* **换库是一次导航，不只是记一笔。**
-     上面那条"URL 优先"是对的，代价是：作用域内每一页的地址里都写着 kbId，
-     于是 `selectedKbId` 永远轮不到。只写 store 的话，值变了、组件也重渲染了，
-     算出来的还是同一个库——顶栏那个下拉因此在 `/kb/$kbId/*` 下**整个是死的**，
-     点了没反应，刷新之后才生效（首页重定向读的是记忆）。
+  /* **Switching KB is a navigation, not just a store write.**
+     The "URL wins" rule above is correct, but it costs this: every in-scope page has kbId written into
+     its address, so `selectedKbId` never gets a turn. Writing only the store means the value changes and
+     the component re-renders, but the computed result is still the same KB — so the header dropdown is
+     **entirely dead** under `/kb/$kbId/*`: clicking does nothing, it only takes effect after a refresh
+     (the home-page redirect reads the stored value).
 
-     所以把导航并进 `setKb` 本身，而不是要求每个调用点记得配一次 `navigate`——
-     漏掉的正是那两处（顶栏下拉、Chat 的范围切换器），而写对的三处都是
-     "跳去某个具体页面"顺带把库带上的。忘得掉的约定就是会被忘掉的约定。
+     So the navigation is folded into `setKb` itself, instead of expecting every call site to remember to
+     also wire up a `navigate` — the two spots that got missed were exactly that (the header dropdown, and
+     Chat's scope switcher), while the three call sites that got it right were all "jump to a specific page"
+     ones that happened to carry the KB along. A convention that can be forgotten will be forgotten.
 
-     停在当前这一页：在本体页换库，该看到另一个库的本体，而不是被送回图谱。
-     地址里没有 kbId 时（账户页等）只记一笔——那里本来就不该被拽走，
-     调用方自己决定跳哪去。 */
+     Stay on the current page: switching KB on the ontology page should show that other KB's ontology,
+     not bounce you back to the graph. When there's no kbId in the address (account pages, etc.) just
+     record it — that scope was never meant to be dragged along; the caller decides where to go. */
   const navigate = useNavigate();
   const pathname = useLocation({ select: (l) => l.pathname });
   const currentKbId = routeParams.kbId;

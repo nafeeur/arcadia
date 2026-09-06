@@ -11,7 +11,7 @@ use crate::error::ApiResult;
 use crate::llm_util;
 use crate::state::AppState;
 
-/// GET: a redacted view (secrets only report back whether they're configured).
+/// GET: redacted view (keys only report whether they're configured).
 pub async fn get(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -36,7 +36,7 @@ pub async fn get(
 #[derive(Deserialize)]
 pub struct PutSettingsReq {
     pub chat_base_url: Option<String>,
-    /// None or empty string = keep the existing secret
+    /// None or empty string = keep the old key
     pub chat_api_key: Option<String>,
     pub chat_model: Option<String>,
     pub embed_base_url: Option<String>,
@@ -73,7 +73,7 @@ pub async fn put(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// Connectivity test: sends one minimal chat message; tries one embedding call and returns its dimension.
+/// Connectivity test: send one minimal chat message; run one embedding trial and return its dimension.
 pub async fn test(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,

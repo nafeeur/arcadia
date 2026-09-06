@@ -1,6 +1,6 @@
 //! Workspace member management.
-//! Rules: viewing members = viewer+; changing role/removing = admin+; granting or revoking the
-//! owner role = owner only; a workspace must always keep at least one owner.
+//! Rules: viewing members = viewer+; changing role/removing = admin+; granting/revoking the owner role = owner only;
+//! always keep at least one owner left in the workspace.
 
 use axum::extract::{Path, State};
 use axum::Json;
@@ -26,7 +26,7 @@ pub async fn list(
     ))
 }
 
-/// Every user in the deployment (for the member picker; visible within the same organization).
+/// All users in the deployment (for the member picker; visible within the same org).
 pub async fn org_users(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -36,12 +36,11 @@ pub async fn org_users(
     ))
 }
 
-/// Deactivated accounts. **Admin-only** — it's a list of "who's been deactivated", and reactivating
-/// is itself an admin action.
+/// Deactivated accounts. **Admin-only** — it's a list of "who got deactivated",
+/// and reactivation is inherently an admin action.
 ///
-/// Without this endpoint, reactivation is a dead end: a deactivated person disappears from every
-/// other list, so an admin has no way to get their id — and that id is exactly what
-/// `POST /admin/users/{id}` needs.
+/// Without this endpoint, reactivation is a dead end: a deactivated person vanishes from every
+/// list, the admin can't get their id, and `POST /admin/users/{id}` needs exactly that id.
 pub async fn deactivated_users(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -75,12 +74,12 @@ pub async fn set_role(
     let target_role =
         utopia_store::members::current_role(&state.pool, workspace_id, target_id).await?;
 
-    // Only an owner can grant or revoke the owner role
+    // Granting or revoking the owner role can only be done by an owner
     let touches_owner = new_role == Role::Owner || target_role == Some(Role::Owner);
     if touches_owner && caller_role != Role::Owner {
         return Err(AppError::Forbidden.into());
     }
-    // Can't demote the last remaining owner
+    // Cannot demote the last owner
     if target_role == Some(Role::Owner)
         && new_role != Role::Owner
         && utopia_store::members::owner_count(&state.pool, workspace_id).await? <= 1

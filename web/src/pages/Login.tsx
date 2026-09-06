@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 
-/* lucide dropped its brand icons, so the GitHub mark is inlined here (official mark path, fill=currentColor) */
+/* lucide dropped the brand icon; GitHub mark inlined (official mark path, fill=currentColor) */
 function GithubMark({ size = 16 }: { size?: number }) {
   return (
     <svg
@@ -41,7 +41,7 @@ export function Login() {
       return api.register(email, password, displayName);
     },
     onSuccess: () => {
-      // Curtain call: the card rises and fades out, the monument zooms through, then we land on the graph home
+      // Curtain call: card floats up and fades, megastructure zooms through, then into the graph home
       setLeaving(true);
       window.setTimeout(() => navigate({ to: "/" }), 650);
     },
@@ -62,7 +62,7 @@ export function Login() {
         <p>{S.arcadia.loginBody}</p>
         <div className="arc-login-caption">{S.arcadia.edition}</div>
       </section>
-      {/* Monument transformation backdrop: planet → ring city → city plain → wavering monolith */}
+      {/* Megastructure transition background: planet -> ring city -> city plain -> wavy monolith */}
 
       <div className={`arc-login-form ${leaving ? "u-depart" : ""}`}>
         <div className="mb-8 text-center u-rise">
@@ -148,7 +148,7 @@ export function Login() {
           )}
         </div>
 
-        {/* Footer: the usual consent sentence with inline terms/privacy links + GitHub entry */}
+        {/* Footer: standard consent copy with inline terms/privacy links + GitHub entry */}
         <div
           className="mt-6 text-center u-rise"
           style={{ animationDelay: "180ms" }}

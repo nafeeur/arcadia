@@ -13,12 +13,12 @@ use crate::state::AppState;
 
 #[derive(Deserialize)]
 pub struct UploadQuery {
-    /// 目标 folder 来源：上传直接归入该文件夹（仅 kind=folder 接受上传）
+    /// Target folder source: uploads go straight into this folder (only kind=folder accepts uploads)
     #[serde(default)]
     pub source: Option<Uuid>,
 }
 
-/// 批量上传（multipart，可多文件）。重复内容（同 KB 同 sha256）跳过。
+/// Bulk upload (multipart, can be multiple files). Duplicate content (same KB, same sha256) is skipped.
 pub async fn upload(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -109,16 +109,16 @@ pub async fn upload(
 
 #[derive(serde::Deserialize)]
 pub struct DocsQuery {
-    /// 来源作用域：缺省 = 全部；`none` = 没有来源的；否则一个来源 id
+    /// Source scope: default = all; `none` = documents with no source; otherwise a source id
     #[serde(default)]
     pub source: Option<String>,
-    /// 文件名包含
+    /// Filename contains
     #[serde(default)]
     pub q: Option<String>,
-    /// 抽取状态：none | queued | extracting | done | failed
+    /// Extraction status: none | queued | extracting | done | failed
     #[serde(default)]
     pub graph: Option<String>,
-    /// `deleted` = 「已删除」视图：只列墓碑（#268）。缺省 = 活着的
+    /// `deleted` = the "deleted" view: lists only tombstones (#268). Default = live ones
     #[serde(default)]
     pub state: Option<String>,
     #[serde(default)]
@@ -127,10 +127,11 @@ pub struct DocsQuery {
     pub offset: Option<i64>,
 }
 
-/// 文库一页。
+/// A page of the document library.
 ///
-/// **改成服务端筛选与分页**：从前一次取回整库、前端切片。27 篇没事，两万篇会把
-/// 整张表打进浏览器；而客户端筛选还有个更隐蔽的毛病——它只筛得到已经拿下来的那些。
+/// **Changed to server-side filtering and pagination**: it used to fetch the whole KB at once and
+/// slice on the frontend. Fine for 27 documents, but 20,000 would dump the entire table into the
+/// browser; and client-side filtering has a subtler flaw too — it can only filter what's already been fetched.
 pub async fn list(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -152,10 +153,10 @@ pub async fn list(
     Ok(Json(page))
 }
 
-/// `None` = 全部，`Some(None)` = 没有来源的，`Some(Some(id))` = 某个来源。
+/// `None` = all, `Some(None)` = documents with no source, `Some(Some(id))` = a specific source.
 ///
-/// 认不出的字符串当成「全部」而不是报错：这个参数来自界面上的一次点击，
-/// 而一次点击不该把整页变成一条错误。
+/// An unrecognized string is treated as "all" rather than an error: this parameter comes from a
+/// single click in the UI, and a single click shouldn't turn the whole page into an error.
 fn parse_scope(raw: Option<&str>) -> Option<Option<Uuid>> {
     match raw {
         None | Some("") => None,
@@ -164,10 +165,10 @@ fn parse_scope(raw: Option<&str>) -> Option<Option<Uuid>> {
     }
 }
 
-/// 一键重试这个作用域里全部抽取失败的文档。
+/// One-click retry for every extraction-failed document in this scope.
 ///
-/// **存在的理由是一条条点太慢**：一个来源里五篇失败就是点五次，而失败往往是
-/// 成批的（模型端点断了一阵，那段时间进来的全挂）。
+/// **Exists because clicking one at a time is too slow**: five failures in one source means five
+/// clicks, and failures tend to come in batches (the model endpoint went down for a while, and everything that came in during that window failed).
 pub async fn retry_failed(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -178,8 +179,9 @@ pub async fn retry_failed(
     let ids =
         utopia_store::documents::failed_ids(&state.pool, kb_id, parse_scope(q.source.as_deref()))
             .await?;
-    // 逐个入队而不是一条 SQL 批量改状态：排队本身有别的动作（解雇在跑的任务、
-    // 清增量标记），那些在 `queue_extraction_one` 里，绕过它会留下半截状态
+    // Enqueue one at a time rather than a single SQL bulk status change: queuing itself does other
+    // things (canceling an in-flight job, clearing incremental markers), which live in
+    // `queue_extraction_one` — bypassing it would leave a half-finished state
     let mut queued = 0usize;
     for id in &ids {
         if utopia_store::documents::queue_extraction_one(&state.pool, *id)
@@ -195,7 +197,7 @@ pub async fn retry_failed(
     Ok(Json(json!({ "queued": queued, "found": ids.len() })))
 }
 
-/// 文档详情 + 全部分块（文档查看器用）。
+/// Document detail + all chunks (for the document viewer).
 pub async fn detail(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -207,7 +209,7 @@ pub async fn detail(
     Ok(Json(json!({ "document": doc, "chunks": chunks })))
 }
 
-/// 反向证据链：文档各分块抽出的事实（文档查看器右栏）。
+/// Reverse evidence chain: the facts extracted from each of the document's chunks (right pane of the document viewer).
 pub async fn extractions(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -227,7 +229,8 @@ pub async fn delete(
     let doc = utopia_store::documents::get(&state.pool, id).await?;
     utopia_store::access::require_kb(&state.pool, &user, doc.kb_id, Role::Editor).await?;
 
-    // 墓碑，不是减法（#268）：文档、分块、证据、原始文件都留着；只作废没有别的出处的事实
+    // A tombstone, not a subtraction (#268): the document, chunks, evidence, and original file all
+    // stay; only facts with no other provenance get invalidated
     let report = utopia_store::documents::delete(&state.pool, doc.kb_id, id, Some(user.id)).await?;
     let search = state.search.clone();
     let did = id.to_string();
@@ -235,7 +238,7 @@ pub async fn delete(
         .await
         .map_err(|e| AppError::Other(e.into()))?
         .map_err(AppError::Other)?;
-    // 前提作废了，靠它推出来的派生随之失效——不等下一次定时重推
+    // Once a premise is invalidated, the derivations that relied on it are invalidated too — no waiting for the next scheduled rematerialization
     settle_derivations(&state, doc.kb_id).await?;
     let _ = utopia_store::audit::record(
         &state.pool,
@@ -259,8 +262,9 @@ pub async fn delete(
     })))
 }
 
-/// 撤销删除：文档、分块、这次作废的事实原路复活，索引重建。
-/// 同步撞见墓碑与同内容重传走的是同一个 store 函数，这里只是人按的那一条路
+/// Undo a deletion: the document, chunks, and the facts invalidated by that deletion are revived
+/// the same way they were removed, and the index is rebuilt.
+/// A sync hitting a tombstone and re-uploading the same content go through the same store function; this is just the path a person clicks
 pub async fn restore(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -285,9 +289,11 @@ pub async fn restore(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// 真删（#268 下半）：内容抹掉，不可撤销，只对已删除的文档开放，库管理员才能按。
-/// 库里先记账（purged_at），再删文件：删文件失败只是漏一份孤儿原文，反过来则是
-/// 库说「还能恢复」而原文已经没了
+/// Hard delete (#268, second half): content is wiped, irreversible, only available for already-deleted
+/// documents, and only a KB admin can click it.
+/// The KB records it first (purged_at), then the file is deleted: if deleting the file fails, it
+/// just leaves behind an orphaned original — the other way around would mean the KB claims "still
+/// recoverable" while the original is already gone
 pub async fn purge(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -321,7 +327,7 @@ pub async fn purge(
     ))
 }
 
-/// 复活的文档回到全文索引：分块的正文一直都在，只是重写一遍索引条目
+/// A revived document goes back into the full-text index: the chunk text was there all along, this just rewrites the index entries
 pub async fn reindex(state: &AppState, doc: &Document) -> utopia_core::AppResult<()> {
     let chunks =
         utopia_store::documents::chunks_in_document(&state.pool, doc.kb_id, doc.id).await?;
@@ -338,7 +344,8 @@ pub async fn reindex(state: &AppState, doc: &Document) -> utopia_core::AppResult
     Ok(())
 }
 
-/// 前提变了就重推一遍，让派生跟上——开关关着的库不推。删除、撤销、同步复活三条路共用
+/// When a premise changes, rematerialize once so derivations catch up — KBs with the switch off
+/// don't rematerialize. Shared by the delete, undo, and sync-revival paths
 pub(crate) async fn settle_derivations(
     state: &AppState,
     kb_id: Uuid,
@@ -350,7 +357,7 @@ pub(crate) async fn settle_derivations(
     Ok(())
 }
 
-/// 重新处理（解析器升级/失败重试）。
+/// Reprocess (parser upgrade / retry after failure).
 pub async fn reprocess(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
@@ -372,9 +379,9 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// 抽取丢弃信号：哪些事实抽出来了却没能落地。整库一次取回——按
-/// (文档 × 原因 × 具体对象) 聚合后行数很小，Library 既算总数又展开详情，
-/// 不必逐行发请求。
+/// Extraction-drop signals: which facts got extracted but never landed. Fetched for the whole KB
+/// at once — aggregated by (document x reason x specific object) the row count is small, and the
+/// Library view can both total them up and expand the detail without firing a request per row.
 pub async fn extraction_drops(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,

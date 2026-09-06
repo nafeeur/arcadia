@@ -1,21 +1,30 @@
-//! 记录轴谓词（0019）：`held_at(T)`——**T 时刻我们认为哪些行成立**。
+//! Record-axis predicates (0019): `held_at(T)` — **which rows we believed held at time T**.
 //!
-//! 世界轴（`valid_from` / `valid_to`）答"那时世界是什么样"，记录轴（`recorded_at` /
-//! `invalidated_at`）答"那时我们以为世界是什么样"。写入侧从图谱迁移起就一直记着
-//! 两根轴，读出侧只倒得回第一根——三月被改掉的事实，在任何滑杆位置上都不存在。
+//! The world axis (`valid_from` / `valid_to`) answers "what was the world
+//! like then"; the record axis (`recorded_at` / `invalidated_at`) answers
+//! "what did we believe the world was like then". The write side has tracked
+//! both axes since the graph migration, but the read side has only ever been
+//! able to roll back the first one — a fact edited away in March doesn't
+//! exist at any position of the slider.
 //!
-//! **谓词只在这里拼。** 防御一旦散到每个读点，漏掉一个就悄无声息：SQL 不报错，
-//! `cargo check` 也不会说一个字（0009 栽的正是这一跤，`human_type_decisions`
-//! 那个测试就是那次留下的）。所以读路径引这里的函数，不自己写 `invalidated_at`。
+//! **Predicates get assembled only here.** Once the defense is scattered
+//! across every read site, one missed spot fails silently: SQL won't error,
+//! and `cargo check` won't say a word (that's exactly the trip 0009 took —
+//! the `human_type_decisions` test is what that fall left behind). So read
+//! paths call the functions here instead of writing `invalidated_at` themselves.
 //!
-//! **写路径不用**（0019）：`confirm_fact` / `reject_fact`、采纳的撤销、去重查重
-//! 都是对"当前那一行"的守卫——修正永远发生在现在，没有"以三月的身份改一行"这回事。
+//! **Not used on the write path** (0019): `confirm_fact` / `reject_fact`,
+//! adopted retractions, and dedup-lookup are all guards over "the current
+//! row" — a correction always happens in the present; there's no such thing
+//! as "editing a row as of March".
 //!
-//! 参数绑 `Option<DateTime<Utc>>`：`NULL` 即"现在"，谓词随之退化成
-//! `invalidated_at IS NULL`（不会有哪一行的作废时刻晚于此刻）。读路径因此
-//! 只写一条语句，而不是为回放和当下各写一条——两条就是下一次漏改的地方。
+//! Parameters bind to `Option<DateTime<Utc>>`: `NULL` means "now", and the
+//! predicate degenerates to `invalidated_at IS NULL` (no row's invalidation
+//! moment can be later than now). The read path therefore needs only one
+//! statement, not one for replay and another for the present — two would be
+//! the next place a fix gets missed.
 
-/// 起止两列构成的记录轴区间：`since <= T < invalidated_at`。
+/// The record-axis interval formed by the start/end columns: `since <= T < invalidated_at`.
 fn held(alias: &str, since: &str, param: usize) -> String {
     format!(
         "{alias}.{since} <= coalesce(${param}, now()) \
@@ -23,22 +32,27 @@ fn held(alias: &str, since: &str, param: usize) -> String {
     )
 }
 
-/// `facts`：断言在 T 时刻仍被我们持有。
+/// `facts`: the assertion is still held by us at time T.
 pub fn facts_held_at(alias: &str, param: usize) -> String {
     held(alias, "recorded_at", param)
 }
 
-/// `derived_facts`：派生在 T 时刻已推出且未被推翻——回放的图上留着**当时**推出的边，
-/// 而不是今天这套规则的结论。
+/// `derived_facts`: derived at time T, and not yet overturned as of then —
+/// the replayed graph keeps the edge derived **at that time**, not the
+/// conclusion of today's rule set.
 pub fn derived_held_at(alias: &str, param: usize) -> String {
     held(alias, "derived_at", param)
 }
 
-/// `axiom_violations`：违规在 T 时刻还开着。列名与上面两张表不同（`detected_at` /
-/// `decided_at` + `status`），但问的是同一个问题——所以也归这里，别在读点上现拼。
+/// `axiom_violations`: the violation was still open at time T. Column names
+/// differ from the two tables above (`detected_at` / `decided_at` + `status`),
+/// but it's asking the same question — so it belongs here too, rather than
+/// being assembled ad hoc at a read site.
 ///
-/// 已裁掉却没留 `decided_at` 的历史行按"当时就不开着"算：宁可少画一条幽灵边，
-/// 也不要凭空给三月的图加一条今天才发现的矛盾。
+/// A historical row that was resolved but never got a `decided_at` is
+/// treated as "not open back then either": better to omit one ghost edge
+/// than to add a contradiction to March's graph that wasn't actually
+/// discovered until today.
 pub fn violation_open_at(alias: &str, param: usize) -> String {
     format!(
         "{alias}.detected_at <= coalesce(${param}, now()) \
@@ -46,7 +60,7 @@ pub fn violation_open_at(alias: &str, param: usize) -> String {
     )
 }
 
-/// `fact_conflicts`：时态冲突在 T 时刻还开着。
+/// `fact_conflicts`: the temporal conflict was still open at time T.
 pub fn conflict_open_at(alias: &str, param: usize) -> String {
     format!(
         "{alias}.created_at <= coalesce(${param}, now()) \
@@ -54,8 +68,9 @@ pub fn conflict_open_at(alias: &str, param: usize) -> String {
     )
 }
 
-/// `documents`：文档在 T 时刻还在库里。删除留墓碑（#268），所以"删掉的文档"
-/// 在删除之前的任何时刻都该照常出现——它的分块当时确实是可检索的。
+/// `documents`: the document was still in the KB at time T. Deletion leaves a
+/// tombstone (#268), so a "deleted" document should still appear normally at
+/// any time before its deletion — its chunks really were searchable back then.
 pub fn document_live_at(alias: &str, param: usize) -> String {
     format!(
         "{alias}.created_at <= coalesce(${param}, now()) \
@@ -63,8 +78,10 @@ pub fn document_live_at(alias: &str, param: usize) -> String {
     )
 }
 
-/// `chunks`：分块在 T 时刻还是现行版本。证据是否"已消失"要按当时的版本判——
-/// 今天被重解析顶掉的段落，在三月的图上仍然是活证据。
+/// `chunks`: the chunk was still the current version at time T. Whether
+/// evidence has "disappeared" must be judged against the version at that
+/// time — a passage superseded today by re-parsing is still live evidence on
+/// March's graph.
 pub fn chunk_live_at(alias: &str, param: usize) -> String {
     format!(
         "{alias}.created_at <= coalesce(${param}, now()) \
@@ -72,10 +89,12 @@ pub fn chunk_live_at(alias: &str, param: usize) -> String {
     )
 }
 
-/// `entity_merges`：这次合并在 T 时刻**生效着**吗（0019 第二刀 / #336）。
+/// `entity_merges`: was this merge **in effect** at time T (0019's second cut / #336)?
 ///
-/// 实体身上没有记录轴——`merged_into` 只说合并发生过，不说何时。时刻在这张表上，
-/// 而它和别的表问的是同一个问题，所以列名不同、形状一样。
+/// Entities carry no record axis of their own — `merged_into` only says a
+/// merge happened, not when. The moment lives on this table instead, and
+/// since it's asking the same question as the others, the column names
+/// differ but the shape doesn't.
 pub fn merge_in_effect_at(alias: &str, param: usize) -> String {
     format!(
         "{alias}.created_at <= coalesce(${param}, now()) \
@@ -83,11 +102,14 @@ pub fn merge_in_effect_at(alias: &str, param: usize) -> String {
     )
 }
 
-/// 实体在 T 时刻是不是一个独立的节点：那时已经存在，且没有被一次生效中的合并吞掉。
+/// Whether an entity was a standalone node at time T: it existed by then, and
+/// wasn't swallowed by a merge in effect at that time.
 ///
-/// **取代读路径上的 `merged_into IS NULL`。** 参数为 NULL 时两者等价（已撤销的合并
-/// 此刻不生效，那个实体本来就该出现），但传了时刻之后，三月被并掉的实体在二月
-/// 会重新长回来——那正是这一刀要的。
+/// **Replaces `merged_into IS NULL` on the read path.** When the parameter is
+/// NULL the two are equivalent (a reverted merge isn't in effect now, so that
+/// entity would show up anyway), but once a moment is passed, an entity
+/// merged away in March grows back in February — which is exactly the point
+/// of this cut.
 pub fn entity_visible_at(alias: &str, param: usize) -> String {
     let merged = merge_in_effect_at("m", param);
     format!(
@@ -97,10 +119,12 @@ pub fn entity_visible_at(alias: &str, param: usize) -> String {
     )
 }
 
-/// 一条事实在 T 时刻的主语（`on_object = false`）或宾语。
+/// A fact's subject (`on_object = false`) or object at time T.
 ///
-/// **现在这条路不进函数**：`fact_owner_at` 包住列之后索引就用不上了，而
-/// 「现在」是每一次画图都要走的路。回放才付这个代价——它本来就少见。
+/// **The "now" path doesn't go through this function**: `fact_owner_at`
+/// wraps the column in a way that loses the index, and "now" is the path
+/// every single graph render takes. Only replay pays that cost — and replay
+/// is rare to begin with.
 pub fn owner_at(fact_alias: &str, column: &str, as_of: Option<usize>, on_object: bool) -> String {
     match as_of {
         None => format!("{fact_alias}.{column}"),

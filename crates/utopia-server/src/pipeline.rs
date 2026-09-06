@@ -1,5 +1,5 @@
-//! 摄入管道：parse → chunk → 全文索引 → embedding（可选）→ ready。
-//! 每步幂等：重跑会先清掉旧分块与旧索引条目。
+//! Ingest pipeline: parse → chunk → full-text index → embedding (optional) → ready.
+//! Every step is idempotent: rerunning clears old chunks and old index entries first.
 
 use crate::llm_util;
 use crate::state::AppState;
@@ -24,13 +24,14 @@ pub async fn process_document(state: &AppState, document_id: Uuid) -> anyhow::Re
 
 async fn run(state: &AppState, document_id: Uuid) -> anyhow::Result<()> {
     let doc = utopia_store::documents::get(&state.pool, document_id).await?;
-    // 排队之后被删了（#268）：墓碑不重建分块、不回索引；清过的连原文都没了
+    // Deleted after being queued (#268): tombstones don't get chunks rebuilt or re-indexed;
+    // once cleared, even the source text is gone
     if doc.deleted_at.is_some() {
         tracing::info!(document = %document_id, "skipping a deleted document");
         return Ok(());
     }
 
-    // 1. 解析（CPU 密集，放 blocking 线程）
+    // 1. Parse (CPU-intensive, run on a blocking thread)
     utopia_store::documents::set_status(&state.pool, document_id, "parsing").await?;
     state.emit_document(doc.kb_id, document_id);
     let bytes = state.blob.get(&doc.sha256).await?;
@@ -39,14 +40,14 @@ async fn run(state: &AppState, document_id: Uuid) -> anyhow::Result<()> {
         tokio::task::spawn_blocking(move || utopia_ingest::parse(&filename, &bytes)).await??;
     let text_len = parsed.text.chars().count() as i32;
 
-    // 2. 分块 + 入库
+    // 2. Chunk + persist
     let pieces = utopia_ingest::chunk_text(&parsed.text);
     let chunk_pairs =
         utopia_store::documents::replace_chunks(&state.pool, doc.kb_id, document_id, &pieces)
             .await?;
     let chunk_count = chunk_pairs.len() as i32;
 
-    // 3. 全文索引（Tantivy）
+    // 3. Full-text index (Tantivy)
     utopia_store::documents::set_status(&state.pool, document_id, "indexing").await?;
     state.emit_document(doc.kb_id, document_id);
     let search = state.search.clone();
@@ -54,7 +55,8 @@ async fn run(state: &AppState, document_id: Uuid) -> anyhow::Result<()> {
     let did = document_id.to_string();
     tokio::task::spawn_blocking(move || search.reindex_document(&kb, &did, &chunk_pairs)).await??;
 
-    // 4. embedding（工作区配置了 embedding 模型才做；没配也算 ready，先享受 BM25 搜索）
+    // 4. embedding (only if the workspace has an embedding model configured; without one
+    // it still counts as ready — you get BM25 search in the meantime)
     let kb_row = utopia_store::kbs::get(&state.pool, doc.kb_id).await?;
     let settings = utopia_store::settings::get(&state.pool, kb_row.workspace_id).await?;
     if let Some(client) = settings.as_ref().and_then(llm_util::embed_client) {
@@ -80,7 +82,8 @@ async fn run(state: &AppState, document_id: Uuid) -> anyhow::Result<()> {
 
     utopia_store::documents::set_ready(&state.pool, document_id, text_len, chunk_count).await?;
 
-    // 两段式：索引就绪后，若配置了对话模型则排队图谱抽取（不阻塞可搜可问）
+    // Two-phase: once the index is ready, queue graph extraction if a chat model is
+    // configured (doesn't block search/ask availability)
     if settings.as_ref().is_some_and(|s| s.chat_ready()) {
         utopia_store::documents::set_graph_status(&state.pool, document_id, "queued").await?;
         utopia_store::jobs::enqueue(
@@ -96,12 +99,13 @@ async fn run(state: &AppState, document_id: Uuid) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// 记忆摄入（episodes 快速路径的后半程）：新 episode chunk 补 embedding、
-/// 重建全文索引、触发增量抽取（extracted_at 为空的新 chunk 才会被抽）。
-/// 免解析免分块——episode 落库时已是 chunk。
+/// Memory ingest (second half of the episodes fast path): backfills embeddings for new
+/// episode chunks, rebuilds the full-text index, and triggers incremental extraction (only
+/// new chunks with an empty `extracted_at` get extracted).
+/// No parsing, no chunking needed — an episode is already a chunk by the time it's persisted.
 ///
-/// `proposer`：说这句话的人，以及经 MCP 时那个 agent。一路传到抽取，落在
-/// `pending_facts.proposed_by` / `proposed_token`（0015、0026）
+/// `proposer`: whoever said this, and the agent acting through MCP if any. Carried all the
+/// way to extraction, landing in `pending_facts.proposed_by` / `proposed_token` (0015, 0026)
 pub async fn memory_ingest(
     state: &AppState,
     document_id: Uuid,

@@ -1,5 +1,5 @@
-/* Account-level "My knowledge bases": accessible KBs + my role in each + join info + overview stats.
-   Read-only overview — creating a KB is an admin action, found under System settings › Knowledge bases. */
+/* Account-level "My knowledge bases": accessible KBs + my role + join info + overview stats.
+   Read-only panorama — creating a KB is an admin action, entry point is System settings › Knowledge bases. */
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Lock } from "lucide-react";

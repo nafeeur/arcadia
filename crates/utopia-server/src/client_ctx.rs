@@ -1,9 +1,10 @@
-//! Request-origin capture: puts the client IP and User-Agent into a task-local, for audit writes to read.
+//! Request-origin capture: stashes the client IP and User-Agent in a task-local, for
+//! audit writes to read later.
 //!
-//! This goes through a task-local rather than threading parameters through every layer because
-//! `audit::record` has twenty-odd call sites scattered across various business handlers;
-//! changing every signature for two fields unrelated to the business logic would just force
-//! every call site to remember something that isn't its concern.
+//! We use a task-local instead of threading the values through every call, because
+//! `audit::record` has two dozen-plus call sites scattered across various business
+//! handlers; changing every signature for two fields unrelated to the business logic
+//! would just force every call site to remember something that isn't its concern.
 
 use axum::extract::ConnectInfo;
 use axum::extract::Request;
@@ -13,14 +14,14 @@ use axum::response::Response;
 use std::net::SocketAddr;
 use utopia_store::audit::{ClientContext, CLIENT};
 
-/// The original client address as forwarded by a reverse proxy. Takes the first segment of
-/// X-Forwarded-For (the hop closest to the client), then X-Real-IP, and falls back to the
-/// actual TCP peer address if neither is present.
+/// The original client address as forwarded by a reverse proxy. Takes the first segment
+/// of X-Forwarded-For (the hop closest to the client), then X-Real-IP, and falls back to
+/// the actual TCP peer address if neither is present.
 ///
-/// Both headers are client-forgeable and shouldn't be trusted on a direct deployment; but on a
-/// direct deployment they simply won't be present, and falling back to the TCP peer address is
-/// then the ground truth. When deployed behind a proxy, the proxy should overwrite rather than
-/// append to these headers.
+/// Both headers are client-forgeable and shouldn't be trusted on a direct connection;
+/// but on a direct connection they simply won't be present, and falling back to the TCP
+/// peer address gives the true value. When deployed behind a proxy, the proxy should
+/// overwrite these headers rather than append to them.
 fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>) -> Option<String> {
     if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         if let Some(first) = xff
@@ -41,7 +42,8 @@ fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>) -> Option<String> {
     peer.map(|a| a.ip().to_string())
 }
 
-/// User-Agent is truncated to 256 bytes: it's entirely client-controlled, and one request header shouldn't be able to bloat the audit ledger.
+/// Truncate User-Agent to 256 bytes: it's entirely client-controlled, and a single
+/// request header shouldn't be able to blow up the audit log.
 fn user_agent(headers: &HeaderMap) -> Option<String> {
     headers
         .get(axum::http::header::USER_AGENT)
@@ -117,12 +119,12 @@ mod tests {
         let h = headers(&[("user-agent", long.as_str())]);
         let got = user_agent(&h).unwrap();
         assert_eq!(got.len(), 256);
-        assert!(long.starts_with(&got), "still a prefix of the original string after truncation");
+        assert!(long.starts_with(&got), "截断后仍是原串的前缀");
     }
 
-    /// HeaderValue::to_str only accepts visible ASCII, so a non-ASCII UA can't be read out at
-    /// all — recording nothing beats recording garbled bytes. This is also why truncating by
-    /// byte offset above is safe: whatever can be read out is guaranteed to be ASCII.
+    /// HeaderValue::to_str only accepts visible ASCII, so a non-ASCII UA can't be read out —
+    /// recording nothing beats recording garbage. This is also why byte-based truncation
+    /// above is safe: anything readable is guaranteed to be ASCII.
     #[test]
     fn non_ascii_user_agent_is_dropped_rather_than_mangled() {
         let mut h = HeaderMap::new();

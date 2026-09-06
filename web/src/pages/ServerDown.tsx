@@ -1,6 +1,5 @@
 /* Punishment pages: 500 server unreachable / 404 lost city.
-   Reuse the login page's scene as a backdrop — even an error keeps up appearances
-   (in self-hosted setups this page is often the operator's first sight of trouble). */
+   Reuses the login page scene as background — even errors keep up appearances (in self-hosted setups this page is often ops' first stop). */
 import { Home, RefreshCw } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { S } from "../i18n";

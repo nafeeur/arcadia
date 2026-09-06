@@ -1,10 +1,12 @@
-//! Connection-string parsing. One input box, four schemes; this splits the URL into the fields each engine needs.
+//! Connection string parsing. One input box, four schemes; this splits the URL
+//! into the fields each engine needs.
 //!
-//! The notation follows the shape of `postgres://user:pass@host/db`: credentials live in the
-//! userinfo, and for the HTTP-based engines the token goes in the password slot
-//! (`databricks://:TOKEN@…`), the path is "catalog / database / schema", and engine-specific
-//! switches go in the query string. `ssl=false` lets the HTTP-based engines use plaintext — for
-//! local proxies and tests; all three of them require https in production.
+//! The shape follows `postgres://user:pass@host/db`: credentials live in the
+//! userinfo, the HTTP family's token goes in the password slot
+//! (`databricks://:TOKEN@…`), the path is "catalog / database / schema", and
+//! engine-specific switches go in the query string. `ssl=false` lets the HTTP
+//! family speak plaintext -- for local proxies and tests; all three hosted
+//! services only accept https.
 
 use percent_encoding::percent_decode_str;
 use url::Url;
@@ -33,8 +35,9 @@ fn segments(u: &Url) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// 令牌：password 位优先；没有 password 时 username 位也算（`databricks://TOKEN@host`
-/// 少打一个冒号是最常见的手滑）；最后看 `?token=`
+/// Token: the password slot wins; when there's no password, the username slot
+/// counts too (`databricks://TOKEN@host` missing a colon is the most common
+/// slip); `?token=` is the last resort
 fn token_of(u: &Url) -> Option<String> {
     u.password()
         .map(decode)
@@ -49,7 +52,8 @@ fn base_of(u: &Url, https: bool, default_port: u16) -> anyhow::Result<String> {
         .ok_or_else(|| anyhow::anyhow!("{}://: a host is required", u.scheme()))?;
     let port = u.port().unwrap_or(default_port);
     let scheme = if https { "https" } else { "http" };
-    // 默认端口不写进 URL：reqwest 照样能连，日志里也干净
+    // The default port isn't written into the URL: reqwest still connects fine,
+    // and it keeps the logs clean
     let explicit = match (https, port) {
         (true, 443) | (false, 80) => String::new(),
         _ => format!(":{port}"),
@@ -59,8 +63,9 @@ fn base_of(u: &Url, https: bool, default_port: u16) -> anyhow::Result<String> {
 
 /// `trino://user[:password]@host[:port]/[catalog[/schema]][?ssl=true|false]`
 ///
-/// 明文 http 是 Trino 的默认（8080）；带密码、`ssl=true`、或端口 443 / 8443 时走 https——
-/// Trino 自己也拒绝在明文上收密码。`presto://` 是同一个协议的旧名。
+/// Plaintext http is Trino's default (8080); it switches to https with a
+/// password, `ssl=true`, or port 443 / 8443 -- Trino itself refuses to accept a
+/// password over plaintext. `presto://` is the old name for the same protocol.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrinoConn {
     pub base: String,
@@ -96,7 +101,8 @@ impl TrinoConn {
 
 /// `databricks://:TOKEN@workspace-host/sql/1.0/warehouses/WAREHOUSE_ID[?catalog=main&schema=default]`
 ///
-/// 路径就是 JDBC 里的 httpPath，从控制台复制过来不用改；`?warehouse=ID` 也认。
+/// The path is the JDBC httpPath -- copy it from the console unchanged;
+/// `?warehouse=ID` is also accepted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DatabricksConn {
     pub base: String,
@@ -133,13 +139,14 @@ impl DatabricksConn {
 
 /// `snowflake://:TOKEN@account.snowflakecomputing.com/[DATABASE[/SCHEMA]][?warehouse=WH&role=R&token_type=pat|oauth]`
 ///
-/// SQL API 不收密码，只收令牌：默认当作 programmatic access token，`token_type=oauth`
-/// 换成 OAuth 令牌。密钥对 JWT 要本地签名，这一版不做。
+/// The SQL API accepts no password, only a token: treated as a programmatic
+/// access token by default, or an OAuth token with `token_type=oauth`. Key-pair
+/// JWT would need local signing, which this version doesn't do.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SnowflakeConn {
     pub base: String,
     pub token: String,
-    /// `X-Snowflake-Authorization-Token-Type` 的值
+    /// The value of `X-Snowflake-Authorization-Token-Type`
     pub token_type: &'static str,
     pub database: Option<String>,
     pub schema: Option<String>,

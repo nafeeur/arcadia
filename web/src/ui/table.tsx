@@ -1,6 +1,6 @@
-/* Table: skin only. Header uses fine-size uppercase letter-spacing, thin lines
-   between rows, hovered row becomes surface-2. Column alignment and width are
-   decided by the page; this does no sorting and no pagination (Pager is in index.tsx). */
+/* Table: styling only. Header is fine-size uppercase with letter spacing, thin row dividers,
+   hovering a row shifts it to surface-2. Column alignment/width is up to the page; no sorting,
+   no pagination here (Pager lives in index.tsx). */
 import type {
   HTMLAttributes,
   TableHTMLAttributes,
@@ -42,7 +42,7 @@ export function Tr({
   className,
   ...props
 }: HTMLAttributes<HTMLTableRowElement> & {
-  /** Clickable row: hover fills the row, cursor becomes a pointer */
+  /** A clickable row: hover shifts the surface, cursor becomes a pointer */
   interactive?: boolean;
 }) {
   return (

@@ -1,8 +1,7 @@
-// Alert event subscription. **Global, not per-KB** — the header badge spans knowledge bases, and system-level alerts have no KB at all.
+// Alert event subscription. **Global, not per-KB** — the topbar badge spans KBs, and system-level alerts have no KB at all.
 //
-// The server push carries no data and checks no permissions (see alerts_routes::stream):
-// on receipt we just refetch, and the list query alone decides what's visible. So this
-// doesn't need to know which KB is current either.
+// The event the server pushes carries no data and checks no permissions (see alerts_routes::stream): on receipt we just refetch,
+// and the list query decides what each viewer can see. So this doesn't need to know the current KB either.
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 

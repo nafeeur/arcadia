@@ -63,7 +63,7 @@ pub async fn hybrid(
                 lists.push(ids.into_iter().map(|id| id.to_string()).collect());
             }
             Ok(_) => {}
-            Err(e) => tracing::warn!(error = %e, "query embedding failed, falling back to pure BM25"),
+            Err(e) => tracing::warn!(error = %e, "查询 embedding 失败，降级为纯 BM25"),
         }
     }
 

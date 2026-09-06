@@ -1,24 +1,32 @@
-//! 时间给模型看的写法：**一条规则，所有工具行都走它**。
+//! How time is written for the model to read: **one rule, every tool line goes through it**.
 //!
-//! - 世界轴的端点按**自己的精度**写：year → `2023`，month → `2023-06`，day → `2023-06-01`。
-//!   从前一律 `%Y-%m-%d`——年精度的事实印成 1 月 1 日，正是 `facts.valid_from_precision`
-//!   那条注释说的病：在无知的地方填一个确定的值。多少精度写多少位。
-//! - 没有精度的时刻——`at`、`as_of`、`recorded_at`、`doc_time`，以及锚点顶上来的界
-//!   （派生行的两端、没起点的事实读出来的起点，0022）——写完整 RFC3339，含小数秒。
-//!   记录轴上同一秒内可以先录入再更正（#351），截到天或秒都会把两次认知叠回一起。
-//! - 「结束了，不知哪天」写成 `ended by <锚点>`，绝不写 `now`。
+//! - A world-axis endpoint is written at **its own precision**: year -> `2023`,
+//!   month -> `2023-06`, day -> `2023-06-01`. It used to always be `%Y-%m-%d` --
+//!   a year-precision fact stamped as January 1st, exactly the disease the
+//!   comment on `facts.valid_from_precision` describes: filling in a certain
+//!   value where there is ignorance. Write as many digits of precision as you have.
+//! - An instant with no precision -- `at`, `as_of`, `recorded_at`, `doc_time`,
+//!   and a bound raised up from an anchor (both ends of a derived row, or the
+//!   start read out of a fact with no start, 0022) -- is written as full
+//!   RFC3339 including fractional seconds. On the record axis, a correction can
+//!   land within the same second as the original entry (#351); truncating to
+//!   the day or the second would collapse the two acts of knowing into one.
+//! - "Ended, unknown when" is written as `ended by <anchor>`, never as `now`.
 //!
-//! 界面的 `web/src/time.ts::fmtTime` 与导出的 `rdf::world_time` 是同一条规则的另两份；
-//! 三处分叉的话，人看到的、模型看到的、审计者拿到的就不是同一个日期。
+//! The frontend's `web/src/time.ts::fmtTime` and the exported `rdf::world_time`
+//! are two other copies of this same rule; if the three diverge, what the
+//! person sees, what the model sees, and what an auditor gets are no longer the same date.
 use chrono::{DateTime, SecondsFormat, Utc};
 
-/// 一个时刻，完整写出。
+/// An instant, written out in full.
 pub fn instant(t: DateTime<Utc>) -> String {
     t.to_rfc3339_opts(SecondsFormat::AutoSi, true)
 }
 
-/// 世界轴的一端，按精度写。小时以下用 ISO 8601 的缩略形式（`2026-06-01T14:32Z`），
-/// 同一个字符串能解析回同一个值和精度。没有精度就是一个时刻（锚点、派生的界），写完整。
+/// One end of the world axis, written at its precision. Below the hour, the
+/// abbreviated ISO 8601 form is used (`2026-06-01T14:32Z`); the same string
+/// parses back to the same value and precision. With no precision it's an
+/// instant (an anchor, a derived bound), written in full.
 pub fn world(t: DateTime<Utc>, precision: Option<&str>) -> String {
     match precision {
         Some("year") => t.format("%Y").to_string(),
@@ -31,7 +39,7 @@ pub fn world(t: DateTime<Utc>, precision: Option<&str>) -> String {
     }
 }
 
-/// 一条事实的两端：原文说的（`valid_*` 与精度）和读出来的（`holds_*`，0022）。
+/// Both ends of a fact: what the source says (`valid_*` and its precision) and what's read out (`holds_*`, 0022).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Span<'a> {
     pub valid_from: Option<DateTime<Utc>>,
@@ -42,12 +50,15 @@ pub struct Span<'a> {
     pub holds_to: Option<DateTime<Utc>>,
 }
 
-/// `from → to`，给模型看。
+/// `from -> to`, for the model to read.
 ///
-/// 起点：原文给了按精度写；没给但有锚点写 `attested <时刻>`——模型该知道这条事实
-/// 只是从那份证据起有据可查。终点：原文给了按精度写；结束了不知哪天写
-/// `ended by <锚点>`（没有锚点时写 `ended, date unknown`）；否则 `now`。
-/// 两端都无可写时返回空串，调用方据此决定不带括号。
+/// Start: written at its precision if the source gives one; if not, but there's
+/// an anchor, written as `attested <instant>` -- the model should know this
+/// fact is only attested as of that piece of evidence. End: written at its
+/// precision if the source gives one; if it ended but the date is unknown,
+/// written as `ended by <anchor>` (or `ended, date unknown` with no anchor);
+/// otherwise `now`. When neither end has anything to write, returns an empty
+/// string, and the caller decides from that not to wrap it in parentheses.
 pub fn span(s: Span<'_>) -> String {
     let from = match (s.valid_from, s.holds_from) {
         (Some(t), _) => Some(world(t, s.from_precision)),
@@ -88,7 +99,7 @@ mod tests {
         assert_eq!(world(clock, Some("hour")), "2026-06-01T14Z");
         assert_eq!(world(clock, Some("minute")), "2026-06-01T14:32Z");
         assert_eq!(world(clock, Some("second")), "2026-06-01T14:32:07Z");
-        // 写出来的能读回去，且是同一个精度
+        // What's written reads back, at the same precision
         for (p, s) in [
             ("hour", "2026-06-01T14Z"),
             ("minute", "2026-06-01T14:32Z"),
@@ -97,7 +108,7 @@ mod tests {
             let (back, bp) = utopia_extract::parse_time(s).unwrap();
             assert_eq!((bp, world(back, Some(p))), (p, s.to_string()));
         }
-        // 没有精度 = 一个时刻（锚点、派生的界）：写完整，不冒充哪一天
+        // No precision = an instant (an anchor, a derived bound): write it in full, don't pretend it's some particular day
         assert_eq!(world(at, None), "2023-06-15T00:00:00Z");
     }
 
@@ -115,7 +126,7 @@ mod tests {
     #[test]
     fn a_span_reads_each_end_by_its_own_rule() {
         let day = |s: &str| Some(t(s));
-        // 原文给了两端
+        // The source gives both ends
         assert_eq!(
             span(Span {
                 valid_from: day("2023-01-01T00:00:00Z"),
@@ -127,7 +138,7 @@ mod tests {
             }),
             "2023 → 2024-07"
         );
-        // 没起点：从证据起；仍在继续
+        // No start: as of the evidence; still ongoing
         assert_eq!(
             span(Span {
                 holds_from: day("2024-02-20T00:00:00Z"),
@@ -135,7 +146,7 @@ mod tests {
             }),
             "attested 2024-02-20T00:00:00Z → now"
         );
-        // 结束了不知哪天：到说出它的那份文档为止，绝不是 now
+        // Ended, unknown when: up to the document that states it, never now
         assert_eq!(
             span(Span {
                 valid_from: day("2023-06-01T00:00:00Z"),
@@ -147,7 +158,7 @@ mod tests {
             }),
             "2023-06-01 → ended by 2025-10-15T00:00:00Z"
         );
-        // 记录轴事件里没有锚点可用
+        // No anchor available in a record-axis event
         assert_eq!(
             span(Span {
                 to_precision: Some("unknown"),

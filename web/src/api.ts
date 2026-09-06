@@ -3,7 +3,7 @@ import { S, lang } from "./i18n";
 
 export class ApiError extends Error {
   status: number;
-  /** 服务端给的稳定错误码（没有则是尚未转换的契约守卫，message 已是英文原句） */
+  /** Stable error code from the server (absent = a contract guard not yet migrated; message is already the English original) */
   code?: string;
   constructor(status: number, message: string, code?: string) {
     super(message);

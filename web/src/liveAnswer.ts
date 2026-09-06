@@ -1,23 +1,29 @@
-// 正在生成中的那些回答，活在组件之外。
+// Answers still being generated live outside the component.
 //
-// **切走一次就看不见了。** 流式中的 `turns` 从前是 Chat 的组件状态，而离开
-// 对话页会卸载这个组件：状态没了，那个 fetch 还在跑，回调写进的是一个已经
-// 死掉的组件。切回来时组件重新挂载、从库里读——库里要等生成结束才有那一行，
-// 于是只看得见自己问的那句话。等一会儿再回来就正常，因为那时已经落库了。
+// **Navigate away once and it's gone.** The streaming `turns` used to be Chat's component state, and
+// leaving the conversation page unmounts that component: the state is gone, the fetch is still running,
+// and its callbacks write into an already-dead component. Coming back remounts the component, which reads
+// from the store — but the store only gets that row once generation finishes, so all you see is the
+// question you asked. Come back later and it's fine, because by then it's been persisted.
 //
-// 服务端那半边（生成不随连接消失）是另一条修复；这半边解决的是**回来的时候
-// 看不看得见**。两条缺一不可：服务端保住了答案，这里保住了那条流。
+// The server-side half (generation doesn't die with the connection) is a separate fix; this half solves
+// **whether you can see it when you come back**. Both are needed: the server preserves the answer, this
+// preserves the stream.
 //
-// **按会话键控，不是单例。** 这张表从前是一个槽位，依据是「同时只会有一次
-// 进行中的回答」。这个前提不成立，而且是被 Chat 自己否定的——换库不 abort
-// （「换库不该杀掉另一个库里正在写的回答」）、开新对话不 abort（「开一场新的
-// 不等于放弃上一场」）、发送守卫按会话收窄（明确拒绝「发不出消息」的全局封锁）。
-// 三个「不 abort」凑在一起，两场并发是常规可达的状态，而单槽装不下它：第二场
-// start 覆盖槽位，第一场的回调还在往「当前槽位的最后一条」里写，两场回答逐字
-// 交织；先结束的那场把另一场的停止按钮提前收掉，自己从此无人可停。
+// **Keyed by conversation, not a singleton.** This table used to be a single slot, on the assumption that
+// only one answer could ever be in flight at a time. That assumption doesn't hold, and Chat itself is what
+// disproves it — switching KB doesn't abort ("switching KB shouldn't kill an answer being written in
+// another KB"), starting a new conversation doesn't abort ("starting a new one doesn't mean giving up on
+// the last one"), and the send guard is scoped per-conversation (explicitly rejecting a global lock that
+// would make sending impossible). Put the three "doesn't abort"s together and two concurrent answers become
+// a routinely reachable state, which a single slot can't hold: the second one's start overwrites the slot,
+// while the first one's callbacks are still writing into "the last turn of the current slot" — the two
+// answers interleave character by character; whichever finishes first prematurely tears down the other's
+// stop button, leaving it with no way to be stopped.
 //
-// 于是改成一张表：谁开场谁拿句柄，读谁写谁都有名有姓。`send` 的守卫不用改——
-// 它本来问的就是「这一场在不在流」，现在这个问题终于只关于这一场。
+// So it became a table instead: whoever starts an answer gets a handle, and every read and write is
+// addressed by name. `send`'s guard doesn't need to change — it always asked "is this particular answer
+// streaming", and now that question is finally only about this particular answer.
 import type { ChatStep, Source } from "./api";
 
 export interface Turn {
@@ -28,10 +34,12 @@ export interface Turn {
   error?: string;
 }
 
-/** 快照条目：纯数据，给渲染看。abort 不进快照——渲染不该顺手摸到它 */
+/** A snapshot entry: plain data, meant for rendering. abort doesn't go into the snapshot — rendering
+    shouldn't be able to touch it in passing */
 export interface Live {
   kbId: string;
-  /** 新会话在服务端回 id 之前是 null；kbId 用来区分两个都还没拿到 id 的新会话 */
+  /** null for a new conversation before the server hands back an id; kbId distinguishes two new
+      conversations that have neither gotten an id yet */
   conversationId: string | null;
   turns: Turn[];
   streaming: boolean;
@@ -45,8 +53,9 @@ interface Slot {
 const lives = new Map<string, Slot>();
 const listeners = new Set<() => void>();
 
-// 快照整体替换：useSyncExternalStore 靠引用相等跳过无关渲染——**别场的任何
-// 变更都不该改变这一场的画面**，这条旧注释在键控之后才字面成立。
+// The snapshot is replaced wholesale: useSyncExternalStore skips unrelated renders via reference
+// equality — **no change to another answer should change this one's rendering**, and this old comment
+// only became literally true once things were keyed.
 let snapshot: readonly Live[] = [];
 
 function emit() {
@@ -54,26 +63,31 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
-// 还没拿到 id 的新会话用内部 token 占位；identify 到真 id 时重映射
+// A new conversation without an id yet is placeholder-keyed with an internal token; identify remaps it
+// to the real id once it arrives.
 let pendingSeq = 0;
 
 export interface LiveHandle {
-  /** 新会话从服务端拿到 id：把这个条目从占位 token 重映射到真 id */
+  /** A new conversation gets its id back from the server: remap this entry from its placeholder token
+      to the real id */
   identify: (conversationId: string) => void;
-  /** 改这场回答的最后一条（助手那一轮）。生成期间只有它在变 */
+  /** Mutate the last turn of this answer (the assistant's turn). Only this changes during generation */
   patchLast: (f: (t: Turn) => Turn) => void;
-  /** 结束（正常、出错、或人按了停止）。
+  /** Ends (normally, on error, or because someone hit stop).
    *
-   * **不清空。** 清空过一版，那一版有个很难看的 bug：切走时组件卸载，
-   * 而「把最终结果交回组件」是调在已经死掉的那个组件上——空操作。于是
-   * store 空了、新组件早前已经认领过这一场因而不会再去读库，切回来
-   * 整场对话一片空白，连自己问的那句都没有。
+   * **Doesn't clear.** An earlier version did clear, and that version had a nasty bug: navigating away
+   * unmounts the component, and "hand the final result back to the component" gets called on a component
+   * that's already dead — a no-op. So the store ended up empty, the new component had already claimed this
+   * answer earlier and so wouldn't go read the store again, and coming back showed a completely blank
+   * conversation — not even the question you'd asked.
    *
-   * 那一刻这里是唯一还握着这份内容的地方，所以留着：只把 `streaming`
-   * 落下来。下一次 `begin` 会清掉已结束的条目（见 begin），切到别的会话时
-   * 认领不上自然去读库。 */
+   * At that moment this is the only place still holding onto the content, so it's kept: only `streaming`
+   * gets set to false. The next `begin` will clear out entries that have finished (see begin), and
+   * switching to a different conversation that can't claim this one naturally falls back to reading the
+   * store. */
   finish: () => void;
-  /** streamChat 的 abort 要等它返回才有：begin 先给占位，拿到真 abort 再换上 */
+  /** streamChat's abort isn't available until it returns: begin hands out a placeholder first, then
+      swaps in the real abort once it has one */
   setAbort: (abort: () => void) => void;
 }
 

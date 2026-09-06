@@ -78,7 +78,7 @@ Notes:
 Create an **API** source; it gets its own push token (view or rotate it from the source's Token dialog). Then:
 
 ```
-POST {your-arcadia-base}/api/v1/sources/{source_id}/ingest
+POST {your-utopia-base}/api/v1/sources/{source_id}/ingest
 Authorization: Bearer utp_…
 Content-Type: application/json
 ```
@@ -111,7 +111,7 @@ The response tells you what happened:
 Example with curl:
 
 ```bash
-curl -X POST "https://arcadia.example.com/api/v1/sources/01a0…/ingest" \
+curl -X POST "https://utopia.example.com/api/v1/sources/01a0…/ingest" \
   -H "Authorization: Bearer utp_…" \
   -H "Content-Type: application/json" \
   -d '{"filename":"runbook.md","content":"# Runbook v2 …","external_id":"note-42"}'

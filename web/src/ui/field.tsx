@@ -1,5 +1,5 @@
-/* Form field: label + control + one hint or one error line. Spacing is decided
-   once here, so pages no longer each write their own mb-3 / mt-1. */
+/* Form field: label + control + a hint or an error line. Spacing is set once here,
+   so pages don't each hand-roll their own mb-3 / mt-1. */
 import type { ReactNode } from "react";
 import { cn } from "./index";
 
@@ -12,9 +12,9 @@ export function Field({
   children,
 }: {
   label: ReactNode;
-  /** One line of description below the control */
+  /** A line of explanation below the control */
   hint?: ReactNode;
-  /** Replaces the description with a danger-colored error when present */
+  /** Replaces the hint when there's an error, in the danger color */
   error?: ReactNode;
   htmlFor?: string;
   className?: string;

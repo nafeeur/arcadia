@@ -1,9 +1,10 @@
-//! Snowflake SQL API v2 (`/api/v2/statements`). A synchronous submission (`async=false`) that can't
-//! finish in time comes back 202, and is then polled by statementHandle. Values are all strings,
-//! restored to numbers/booleans using rowType.
+//! Snowflake SQL API v2 (`/api/v2/statements`). Submitted synchronously
+//! (`async=false`); a statement that doesn't finish in time comes back as 202
+//! and is polled by statementHandle. Every value is a string, restored to
+//! numbers and booleans using rowType.
 //!
-//! Accepts only tokens, not passwords: a programmatic access token or OAuth. Key-pair JWT would need
-//! local signing, which this version doesn't do — see `conn.rs`.
+//! Tokens only, no passwords: programmatic access token or OAuth. Key-pair JWT
+//! would need local signing, which this version doesn't do -- see `conn.rs`.
 
 use super::conn::SnowflakeConn;
 use super::{
@@ -77,7 +78,7 @@ impl SnowflakeEngine {
             .send()
             .await?;
         let started = Instant::now();
-        // 202 = still running; any other non-2xx response carries a message in the body
+        // 202 = still running; any other non-2xx has a message in the body
         while http.status() == StatusCode::ACCEPTED {
             let partial: StatementResponse = http.json().await?;
             let handle = partial.handle.ok_or_else(|| {
@@ -106,7 +107,7 @@ impl SnowflakeEngine {
         }
         let resp: StatementResponse = http.json().await?;
         if let (Some(code), Some(message)) = (&resp.code, &resp.message) {
-            // Even a 2xx can carry a business error code; 090001 is "statement executed successfully"
+            // A 2xx can still carry a business error code; 090001 is "statement executed successfully"
             if code != "090001" && resp.meta.is_none() {
                 anyhow::bail!("Snowflake {code}: {message}");
             }

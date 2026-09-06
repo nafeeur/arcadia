@@ -1,18 +1,19 @@
-//! Credential backfill sealing: plaintext credentials written before the encryption key was
-//! set up get sealed on the first start after the key becomes available.
+//! Credential backfill-sealing: plaintext credentials persisted before the
+//! upgrade get sealed on the first startup after the key is installed.
 //!
-//! Idempotent, runs on every start: the test is "the value has no `enc:v1:` prefix" — already
-//! sealed rows are left alone. Each of the four credential spots (`llm_settings`'s two keys,
-//! `data_sources.conn_string`, the credential keys inside `sources.config`,
-//! `sources.ingest_token`) is scanned here individually — adding a new place credentials are
-//! stored means adding it here too, or that spot stays plaintext forever with nothing to warn about it.
+//! Idempotent, runs on every startup: the test is "value has no `enc:v1:`
+//! prefix"; already-sealed values are left alone. The four credential spots
+//! (`llm_settings`'s two keys, `data_sources.conn_string`, the credential keys
+//! in `sources.config`, `sources.ingest_token`) are each scanned here — a new
+//! storage location must be added here too, or it stays plaintext forever
+//! with nothing to warn about it.
 
 use sqlx::PgPool;
 use utopia_core::models::SOURCE_SECRET_KEYS;
 use utopia_core::{secrets, AppResult};
 use uuid::Uuid;
 
-/// Returns the number of rows backfilled. Does nothing if no key is configured.
+/// Returns the number of rows sealed. Does nothing if the key isn't installed
 pub async fn backfill(pool: &PgPool) -> AppResult<usize> {
     if !secrets::is_ready() {
         return Ok(0);
@@ -22,7 +23,7 @@ pub async fn backfill(pool: &PgPool) -> AppResult<usize> {
         + seal_sources(pool, None).await?)
 }
 
-/// `only` = backfill just this one workspace (for tests; pass None at startup to scan all)
+/// `only` = seal just this workspace (for tests; pass None at startup to scan everything)
 pub async fn seal_llm_settings(pool: &PgPool, only: Option<Uuid>) -> AppResult<usize> {
     let rows: Vec<(Uuid, Option<String>, Option<String>)> = sqlx::query_as(
         "SELECT workspace_id, chat_api_key, embed_api_key FROM llm_settings
@@ -66,8 +67,9 @@ pub async fn seal_data_sources(pool: &PgPool, only: Option<Uuid>) -> AppResult<u
     Ok(n)
 }
 
-/// The sources table is small, so read the whole thing back and check in Rust: the credential
-/// keys are buried inside JSON, which makes checking in SQL more convoluted than this.
+/// The sources table is small, so read the whole thing back and check in Rust:
+/// the credential keys are buried in JSON, which would make a SQL check more
+/// convoluted, not less
 pub async fn seal_sources(pool: &PgPool, only: Option<Uuid>) -> AppResult<usize> {
     let rows: Vec<(Uuid, serde_json::Value, Option<String>)> = sqlx::query_as(
         "SELECT id, config, ingest_token FROM sources WHERE ($1::uuid IS NULL OR id = $1)",

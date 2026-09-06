@@ -12,7 +12,8 @@ pub async fn list(pool: &PgPool, workspace_id: Uuid) -> AppResult<Vec<KnowledgeB
     Ok(rows)
 }
 
-/// 用户可见的 KB：系统管理员全见；其余 = open 库 + 自己在矩阵里的 restricted 库。
+/// KBs visible to the user: sysadmins see everything; everyone else sees
+/// open KBs plus restricted KBs where they're in the matrix.
 pub async fn list_visible(
     pool: &PgPool,
     workspace_id: Uuid,
@@ -43,10 +44,13 @@ pub async fn create(
     kind: &str,
     description: Option<&str>,
 ) -> AppResult<KnowledgeBase> {
-    // 部署的第一个库自动成为默认库：公共空间,永远 open、不可删（API 强制 + DB CHECK）
+    // The deployment's first KB automatically becomes the default: a public
+    // space, always open, undeletable (enforced by both the API and a DB CHECK)
     //
-    // ontology_lang 取部署默认值：中文部署不该每建一个库就手动选一次。
-    // 之后按库可改——同一个部署里完全可能一个库读中文合同、另一个读英文论文
+    // ontology_lang takes the deployment default: a Chinese deployment shouldn't
+    // need a manual pick on every new KB. It's changeable per KB afterward —
+    // a single deployment can well have one KB reading Chinese contracts and
+    // another reading English papers
     let kb = sqlx::query_as(
         "INSERT INTO knowledge_bases
              (id, workspace_id, name, kind, description, is_default, ontology_lang)
@@ -86,8 +90,10 @@ pub async fn update(
     inference_interval_minutes: Option<i32>,
     auto_type_resolution: Option<bool>,
 ) -> AppResult<KnowledgeBase> {
-    // 改语言不回头重写已有的类——它们已经是这个库的数据，可能有人手工调过。
-    // 这一列往后管的是**新**描述（自动扩本体、AI 建议）写成什么语言
+    // Changing the language doesn't rewrite existing classes retroactively —
+    // they're already this KB's data, and someone may have hand-tuned them.
+    // From here on this column only governs what language **new** descriptions
+    // (auto ontology extension, AI suggestions) get written in
     if let Some(l) = ontology_lang {
         if !matches!(l, "en" | "zh") {
             return Err(AppError::invalid("bad_lang", "language must be en or zh"));
@@ -99,7 +105,8 @@ pub async fn update(
                 "visibility must be open or restricted".into(),
             ));
         }
-        // 默认库永远 open：公共空间语义可依赖（改名/改描述不受限）
+        // The default KB is always open: the public-space semantics must be
+        // reliable (renaming/re-describing it is unrestricted)
         if v == "restricted" {
             let current = get(pool, id).await?;
             if current.is_default {
@@ -138,7 +145,8 @@ pub async fn update(
 }
 
 pub async fn readiness(pool: &PgPool, kb_id: Uuid) -> AppResult<Readiness> {
-    // 一次查询拿全，四个页面各发一次请求也只是一次点查
+    // One query gets everything; even if all four panels each fire a request,
+    // each is still just a single point lookup
     let r: Readiness = sqlx::query_as(
         "SELECT
            EXISTS (
@@ -148,7 +156,8 @@ pub async fn readiness(pool: &PgPool, kb_id: Uuid) -> AppResult<Readiness> {
            ) AS has_chat_model,
            (SELECT count(*) FROM documents
              WHERE kb_id = $1 AND deleted_at IS NULL) AS documents,
-           -- 两条轴各有各的进行时：内容还没进库（status），或图还没抽完（graph_status）
+           -- Each axis has its own in-progress state: content not yet ingested
+           -- (status), or graph extraction not yet finished (graph_status)
            (SELECT count(*) FROM documents
              WHERE kb_id = $1 AND deleted_at IS NULL
                AND (status IN ('pending', 'parsing', 'indexing', 'embedding')
