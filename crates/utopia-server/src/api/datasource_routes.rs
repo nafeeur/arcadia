@@ -1,5 +1,5 @@
 //! Answer-engine data sources: system-level registration (admin, credentials go in but never come out)
-//! + KB-level mounting (KB admin). On mount/manual refresh, the target database's schema is
+//! and KB-level mounting (KB admin). On mount/manual refresh, the target database's schema is
 //! rendered as markdown and ingested into the KB (updated in place under the same key), so Chat
 //! can retrieve the table structure before writing SQL. The safety gate for query execution lives
 //! in gate 2 (the `query_data` tool).
