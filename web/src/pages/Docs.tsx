@@ -270,7 +270,7 @@ export function DocsPage() {
               排版交给官方 @tailwindcss/typography（prose，16px 基准），
               自定义只剩：标题锚点 id、外链新开、表格横向滚动容器 */}
           {/* prose-neutral：默认 gray 阶带蓝相（oklch 258°），违反 chrome 零色偏 */}
-          <article className="prose prose-neutral prose-invert prose-headings:scroll-mt-6 prose-code:before:content-none prose-code:after:content-none flex-1 min-w-0 max-w-3xl mx-auto px-8 pt-16 pb-[40vh]">
+          <article className="prose prose-neutral prose-headings:scroll-mt-6 prose-code:before:content-none prose-code:after:content-none flex-1 min-w-0 max-w-3xl mx-auto px-8 pt-16 pb-[40vh]">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
