@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/LICENSE-APACHE%202.0-3FB950?style=flat-square&labelColor=161B22)](LICENSE)
 [![Rust](https://img.shields.io/badge/BUILT%20WITH-RUST-F74C00?style=flat-square&labelColor=161B22&logo=rust&logoColor=FFFFFF)](https://www.rust-lang.org)
 [![Postgres](https://img.shields.io/badge/DATA-POSTGRES%20%2B%20PGVECTOR-336791?style=flat-square&labelColor=161B22&logo=postgresql&logoColor=FFFFFF)](https://github.com/pgvector/pgvector)
-[![Forked from Utopia](https://img.shields.io/badge/FORKED%20FROM-UTOPIA-2D333B?style=flat-square&labelColor=161B22)](https://github.com/deeplethe/utopia)
+[![Built on Utopia](https://img.shields.io/badge/BUILT%20ON-UTOPIA-2D333B?style=flat-square&labelColor=161B22)](https://github.com/deeplethe/utopia)
 
 [Overview](#overview) · [Features](#features) · [Quick start](#quick-start) · [Configuration](#configuration) · [Development](#development) · [Attribution](#attribution)
 
@@ -25,7 +25,7 @@ Arcadia adds a full **review workflow around changing knowledge** on top of that
 
 It ships as **one Rust binary and one Postgres database.** Full-text search is embedded in the binary (Tantivy), vectors live in `pgvector`, and the job queue is a table — nothing else to run.
 
-> Arcadia is a substantial fork of [DeepLethe's Utopia](https://github.com/deeplethe/utopia). It keeps Utopia's graph, ingestion, ontology, SQL-mapping, chat and account foundation, and adds the review/evidence/SSO layer described below along with a new visual identity. See [Attribution](#attribution).
+> Arcadia is built on top of [DeepLethe's Utopia](https://github.com/deeplethe/utopia), using its graph, ingestion, ontology, SQL-mapping, chat and account foundation, and adding the review/evidence/SSO layer described below along with a new visual identity. See [Attribution](#attribution).
 
 ## Features
 
@@ -128,6 +128,6 @@ Arcadia is at **v0.1**. The database schema evolves between versions and migrati
 
 ## Attribution
 
-Arcadia is forked from **[Utopia](https://github.com/deeplethe/utopia)** by [DeepLethe](https://github.com/deeplethe) — a bitemporal knowledge graph and retrieval-augmented assistant, and the source of Arcadia's ingestion, ontology, reasoning, SQL-mapping, chat and account foundation. Arcadia adds the review workflow, historical search, evidence traces, organization SSO, recovery tooling and visual identity described above. It is an independent derivative project, not an official DeepLethe release, and is not affiliated with or endorsed by DeepLethe.
+Arcadia is built on top of **[Utopia](https://github.com/deeplethe/utopia)** by [DeepLethe](https://github.com/deeplethe) — a bitemporal knowledge graph and retrieval-augmented assistant, which serves as the foundation for Arcadia's ingestion, ontology, reasoning, SQL-mapping, chat and account layers. Arcadia adds the review workflow, historical search, evidence traces, organization SSO, recovery tooling and visual identity described above. It is an independent derivative project, not an official DeepLethe release, and is not affiliated with or endorsed by DeepLethe.
 
 Original copyright and Apache-2.0 licensing are preserved; Arcadia's changes are distributed under the same [Apache-2.0 license](LICENSE). The complete upstream Git history and the exact patch that produced Arcadia are preserved in `provenance/`. Upstream's own README is kept verbatim in [UPSTREAM.md](UPSTREAM.md).
