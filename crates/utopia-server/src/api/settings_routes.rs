@@ -2,7 +2,8 @@ use axum::extract::{Path, State};
 use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
-use utopia_core::models::Role;
+use utopia_core::models::{Role, User};
+use utopia_core::AppError;
 use utopia_llm::ChatMessage;
 use uuid::Uuid;
 
@@ -11,13 +12,31 @@ use crate::error::ApiResult;
 use crate::llm_util;
 use crate::state::AppState;
 
+/// Model settings live on the workspace, but a platform admin manages them
+/// too (same bypass kbs.rs/members_routes.rs use) — otherwise an is_admin
+/// user who isn't separately a workspace Admin sees the Administration page
+/// but gets a silent 403 on the one tab it exists for.
+async fn require_workspace_admin(
+    state: &AppState,
+    user: &User,
+    workspace_id: Uuid,
+) -> Result<(), AppError> {
+    let ws_role =
+        utopia_store::workspaces::require_role(&state.pool, user.id, workspace_id, Role::Viewer)
+            .await?;
+    if !user.is_admin && ws_role < Role::Admin {
+        return Err(AppError::Forbidden);
+    }
+    Ok(())
+}
+
 /// GET: redacted view (keys only report whether they're configured).
 pub async fn get(
     State(state): State<AppState>,
     AuthUser(user): AuthUser,
     Path(workspace_id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    utopia_store::workspaces::require_role(&state.pool, user.id, workspace_id, Role::Admin).await?;
+    require_workspace_admin(&state, &user, workspace_id).await?;
     let s = utopia_store::settings::get(&state.pool, workspace_id).await?;
     Ok(Json(match s {
         None => json!({}),
@@ -51,7 +70,7 @@ pub async fn put(
     Path(workspace_id): Path<Uuid>,
     Json(req): Json<PutSettingsReq>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    utopia_store::workspaces::require_role(&state.pool, user.id, workspace_id, Role::Admin).await?;
+    require_workspace_admin(&state, &user, workspace_id).await?;
     let nonempty = |v: &Option<String>| -> Option<String> {
         v.as_deref()
             .map(str::trim)
@@ -79,7 +98,7 @@ pub async fn test(
     AuthUser(user): AuthUser,
     Path(workspace_id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    utopia_store::workspaces::require_role(&state.pool, user.id, workspace_id, Role::Admin).await?;
+    require_workspace_admin(&state, &user, workspace_id).await?;
     let Some(s) = utopia_store::settings::get(&state.pool, workspace_id).await? else {
         return Ok(Json(
             json!({ "chat": { "ok": false, "error": "Not configured" },

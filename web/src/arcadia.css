@@ -31,6 +31,19 @@
   --u-menu-surface: #233c32;
   --u-menu-surface-hover: #2b4639;
   --u-ring: #d6b56b;
+  /* Tailwind's text-ink/bg-surface/border-line utilities read --color-* tokens
+     that alias --u-* at :root (styles.css). A CSS custom property's var()
+     substitution resolves once at its declaring element and that resolved
+     value is what inherits — redeclaring --u-* here doesn't reach utilities
+     unless the --color-* aliases are also redeclared in this scope. */
+  --color-ink: var(--u-text);
+  --color-ink-2: var(--u-text-2);
+  --color-ink-3: var(--u-text-3);
+  --color-surface: var(--u-surface);
+  --color-surface-2: var(--u-surface-2);
+  --color-surface-3: var(--u-surface-3);
+  --color-line: var(--u-line);
+  --color-ring: var(--u-ring);
 }
 .arc-brand {
   display: flex;

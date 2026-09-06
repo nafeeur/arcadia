@@ -68,8 +68,11 @@ pub async fn set_role(
         AppError::Validation("Role must be one of owner/admin/editor/viewer".into())
     })?;
     let caller_role =
-        utopia_store::workspaces::require_role(&state.pool, user.id, workspace_id, Role::Admin)
+        utopia_store::workspaces::require_role(&state.pool, user.id, workspace_id, Role::Viewer)
             .await?;
+    if !user.is_admin && caller_role < Role::Admin {
+        return Err(AppError::Forbidden.into());
+    }
 
     let target_role =
         utopia_store::members::current_role(&state.pool, workspace_id, target_id).await?;
@@ -97,8 +100,11 @@ pub async fn remove(
     Path((workspace_id, target_id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let caller_role =
-        utopia_store::workspaces::require_role(&state.pool, user.id, workspace_id, Role::Admin)
+        utopia_store::workspaces::require_role(&state.pool, user.id, workspace_id, Role::Viewer)
             .await?;
+    if !user.is_admin && caller_role < Role::Admin {
+        return Err(AppError::Forbidden.into());
+    }
     let target_role = utopia_store::members::current_role(&state.pool, workspace_id, target_id)
         .await?
         .ok_or(AppError::NotFound)?;
