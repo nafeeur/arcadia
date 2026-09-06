@@ -27,6 +27,8 @@ It ships as **one Rust binary and one Postgres database.** Full-text search is e
 
 > Arcadia is built on top of [DeepLethe's Utopia](https://github.com/deeplethe/utopia), using its graph, ingestion, ontology, SQL-mapping, chat and account foundation, and adding the review/evidence/SSO layer described below along with a new visual identity. See [Attribution](#attribution).
 
+<img src="assets/screenshots/login.jpg" alt="Arcadia sign-in screen">
+
 <table>
 <tr>
 <td width="50%">
@@ -53,6 +55,34 @@ It ships as **one Rust binary and one Postgres database.** Full-text search is e
 
 **Change review** — side-by-side diff and dependency impact before anything lands
 <img src="assets/screenshots/change-review.jpg" alt="Arcadia change review diff view">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Ontology workbench** — the schema behind extraction, browsable as a graph
+<img src="assets/screenshots/ontology.jpg" alt="Arcadia ontology workbench">
+
+</td>
+<td width="50%">
+
+**Review queue** — unconfirmed facts, low-confidence extractions, and merges the AI adjudicator made (all reversible)
+<img src="assets/screenshots/review.jpg" alt="Arcadia review queue dashboard">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Evidence explorer** — search the knowledge base as it stood at a past date
+<img src="assets/screenshots/evidence-explorer.jpg" alt="Arcadia evidence explorer historical search">
+
+</td>
+<td width="50%">
+
+**Answer ledger** — every past answer, its model, its citations, and a replay tool to re-check it
+<img src="assets/screenshots/answer-ledger.jpg" alt="Arcadia answer ledger with document replay">
 
 </td>
 </tr>
