@@ -4,11 +4,23 @@
 use utopia_search::{DocsIndex, DocsSection};
 
 /// (slug, 标题, 正文)。slug 必须与前端 DOCS 清单一致（引用链接 /docs/{slug} 才对得上）。
-const ARTICLES: &[(&str, &str, &str)] = &[(
-    "ingest",
-    "Ingest interfaces",
-    include_str!("../../../web/src/docs/ingest.md"),
-)];
+const ARTICLES: &[(&str, &str, &str)] = &[
+    (
+        "arcadia",
+        "Arcadia: evidence and change",
+        include_str!("../../../web/src/docs/arcadia.md"),
+    ),
+    (
+        "mcp",
+        "Agents over MCP",
+        include_str!("../../../web/src/docs/mcp.md"),
+    ),
+    (
+        "ingest",
+        "Ingest interfaces",
+        include_str!("../../../web/src/docs/ingest.md"),
+    ),
+];
 
 /// 启动时建索引；语料是编译期常量，失败即程序错误，响亮地死。
 pub fn build_index() -> DocsIndex {

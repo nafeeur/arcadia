@@ -244,7 +244,7 @@ pub async fn search_docs(
         let key = format!("charter:{}#{}", h.slug, h.anchor);
         let n = cite(sink, key, |n| charter_source_json(n, h));
         lines.push(format!(
-            "[{n}] Utopia Charter — {} › {}:\n{}",
+            "[{n}] Arcadia Charter — {} › {}:\n{}",
             h.title,
             h.heading,
             truncate(&h.body, 1600)
@@ -667,6 +667,7 @@ pub(super) fn source_json(n: usize, c: &ChunkView) -> serde_json::Value {
         "document_id": c.document_id,
         "filename": c.filename,
         "excerpt": truncate(&c.text, 160),
+        "text": c.text,
     })
 }
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 /* lucide 已移除品牌图标，GitHub mark 内联（官方 mark 路径，fill=currentColor） */
@@ -16,20 +16,19 @@ function GithubMark({ size = 16 }: { size?: number }) {
     </svg>
   );
 }
-import { api, ApiError } from "../api";
+import { api, ApiError, request } from "../api";
 import { S } from "../i18n";
-import {
-  Button,
-  Input,
-  Segmented,
-  Wordmark,
-} from "../ui";
-import { LoginScene } from "./LoginScene";
+import { Button, Input, Segmented, Wordmark } from "../ui";
+
 import { usePageTitle } from "../useTitle";
 
 export function Login() {
   usePageTitle(S.app.name, S.login.signIn);
   const navigate = useNavigate();
+  const sso = useQuery({
+    queryKey: ["sso-status"],
+    queryFn: () => request<{ enabled: boolean }>("/api/v1/auth/oidc/status"),
+  });
   const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,14 +54,17 @@ export function Login() {
         ? S.login.networkError
         : null;
 
-
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
+    <div className="arc-login">
+      <section className="arc-login-story">
+        <p className="arc-eyebrow">{S.arcadia.loginLabel}</p>
+        <h2>{S.arcadia.loginTitle}</h2>
+        <p>{S.arcadia.loginBody}</p>
+        <div className="arc-login-caption">{S.arcadia.edition}</div>
+      </section>
       {/* 巨构变换背景：星球 → 环形都市 → 城市平原 → 波动巨碑 */}
-      <LoginScene leaving={leaving} />
-      <div
-        className={`relative z-10 w-full max-w-sm ${leaving ? "u-depart" : ""}`}
-      >
+
+      <div className={`arc-login-form ${leaving ? "u-depart" : ""}`}>
         <div className="mb-8 text-center u-rise">
           <h1 className="u-wordmark-hero font-normal">
             <Wordmark />
@@ -122,7 +124,10 @@ export function Login() {
               minLength={8}
             />
             {error && <p className="text-body text-danger">{error}</p>}
-            <Button variant="primary" size="md" className="w-full"
+            <Button
+              variant="primary"
+              size="md"
+              className="w-full"
               type="submit"
               disabled={mutation.isPending || leaving}
             >
@@ -133,6 +138,14 @@ export function Login() {
                   : S.login.createAccount}
             </Button>
           </form>
+          {sso.data?.enabled && (
+            <a
+              className="arc-primary-link arc-sso-login"
+              href="/api/v1/auth/oidc/start"
+            >
+              {S.arcadia.ssoLogin}
+            </a>
+          )}
         </div>
 
         {/* 页脚：惯用同意句式内嵌条款/隐私链接 + GitHub 入口 */}
@@ -142,17 +155,11 @@ export function Login() {
         >
           <p className="u-balance text-fine leading-relaxed text-ink-3">
             {S.login.agreePrefix}
-            <Link
-              to="/terms"
-              className="u-link whitespace-nowrap"
-            >
+            <Link to="/terms" className="u-link whitespace-nowrap">
               {S.legal.termsTitle}
             </Link>
             {S.login.agreeAnd}
-            <Link
-              to="/privacy"
-              className="u-link whitespace-nowrap"
-            >
+            <Link to="/privacy" className="u-link whitespace-nowrap">
               {S.legal.privacyTitle}
             </Link>
             {S.login.agreeSuffix}
@@ -161,7 +168,7 @@ export function Login() {
             href={S.login.githubUrl}
             target="_blank"
             rel="noreferrer"
-            title="GitHub"
+            title={S.arcadia.upstreamSource}
             className="u-hover-ink mt-3 inline-flex text-ink-3"
           >
             <GithubMark size={16} />

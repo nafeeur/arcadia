@@ -33,7 +33,7 @@ export function HeaderActions({
           href={S.login.githubUrl}
           target="_blank"
           rel="noreferrer"
-          title="GitHub"
+          title={S.arcadia.upstreamSource}
           className="u-pill"
         >
           <GithubMark size={13} />

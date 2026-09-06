@@ -30,14 +30,12 @@ services:
   # 完整部署：docker compose --profile app up -d
   # 本地开发只起 db，应用用 cargo run 跑
   #
-  # 这里只写 image 不写 build：两者并存时，本地没有镜像的 up 会去"构建"而不是
-  # "拉取"，预构建镜像就白发了。要从源码起，叠加 docker-compose.build.yml。
+  # Build this Arcadia fork locally; no upstream application image is used.
   app:
-    # 钉在已发布的具体版本。**这个默认值就是 README 承诺的那条命令**，
-    # 写一个不存在的标签，clone 下来第一步就是 manifest unknown。
-    # 所以撤掉一个版本时必须连它一起改——0.1.0 撤了，现在指向 rc。
-    # 转正之后改回 0.1.0（或改成 latest 让它自动跟随）。
-    image: ${UTOPIA_IMAGE:-ghcr.io/deeplethe/utopia:0.1.0-rc5}
+    image: ${ARCADIA_IMAGE:-arcadia:local}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     profiles: ["app"]
     environment:
       # 默认以 owner 身份运行。要启用受限角色（业务表随便读写、台账只增不改），
@@ -46,6 +44,10 @@ services:
       UTOPIA_DATABASE_URL: ${UTOPIA_DATABASE_URL:-postgres://utopia:${UTOPIA_DB_PASSWORD:-utopia}@db:5432/utopia}
       UTOPIA_MIGRATION_URL: ${UTOPIA_MIGRATION_URL:-}
       UTOPIA_BIND_ADDR: 0.0.0.0:1516
+      ARCADIA_OIDC_ISSUER: ${ARCADIA_OIDC_ISSUER:-}
+      ARCADIA_OIDC_CLIENT_ID: ${ARCADIA_OIDC_CLIENT_ID:-}
+      ARCADIA_OIDC_CLIENT_SECRET: ${ARCADIA_OIDC_CLIENT_SECRET:-}
+      ARCADIA_OIDC_REDIRECT_URI: ${ARCADIA_OIDC_REDIRECT_URI:-}
       # 留空：首次启动自动生成一条存进 deployment_settings。这里若给缺省值，
       # 自动生成就永远走不到，所有部署又会共用同一个人人皆知的密钥。
       UTOPIA_JWT_SECRET: ${UTOPIA_JWT_SECRET:-}

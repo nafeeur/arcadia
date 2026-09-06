@@ -3,16 +3,147 @@
 //
 // 加新文案时先加在这里，再补其余语言包——顺序反了会得到一个类型错误，那正是本意。
 export const en = {
+  arcadia: {
+    upstreamSource: "Upstream Utopia source",
+    savedRuns: "Saved comparisons (latest 20)",
+    proposalRun: "Proposed document evidence",
+    guideTitle: "Arcadia: evidence and change",
+    "sso": "Single sign-on",
+    "ssoLogin": "Continue with organization SSO",
+    "ssoIntro": "Connect existing accounts to exact identities from your organization’s identity provider.",
+    "ssoDisabled": "SSO is not configured. Set the issuer, client ID and callback URL in the deployment environment.",
+    "issuer": "Identity provider",
+    "subject": "Provider subject (sub)",
+    "account": "Account",
+    "linkIdentity": "Link identity",
+    "unlinkIdentity": "Unlink",
+    "ssoNote": "Accounts must already exist. Arcadia does not automatically link by email or create accounts during SSO.",
+    "selectAccount": "Select an account",
+
+    "home": "Overview",
+    "changes": "Change review",
+    "traces": "Answer ledger",
+    "history": "Evidence explorer",
+    "workspace": "KNOWLEDGE WORKSPACE",
+    "edition": "ARCADIA / 01",
+    "knowledge": "KNOWLEDGE",
+    "governance": "GOVERNANCE",
+    "tagline": "Knowledge moves. Keep the evidence.",
+    "intro": "A clear view of what you know, what changed, and what deserves a second look.",
+    "live": "Workspace overview",
+    "documents": "Documents",
+    "facts": "Active facts",
+    "pending": "Awaiting review",
+    "answers": "Your captured answers",
+    "viewAll": "View all",
+    "recentChanges": "The review desk",
+    "recentAnswers": "Recent answers",
+    "emptyChanges": "No changes awaiting your attention.",
+    "emptyAnswers": "Your next conversation starts the ledger.",
+    "emptyAnswersBody": "Ask a question in Chat. Arcadia will retain the answer, its document evidence, and the tool exchange here.",
+    "openChat": "Ask a question",
+    "openLibrary": "Open document library",
+    "newChange": "Propose a change",
+    "changeIntro": "Review the evidence before changing what everyone knows.",
+    "traceIntro": "The exact answer, the evidence behind it, and what a new run says.",
+    "historyIntro": "Search the knowledge base as it stood at a particular moment.",
+    "document": "Document",
+    "chooseDocument": "Select a ready document",
+    "title": "Change title",
+    "reason": "Why is this changing?",
+    "replacement": "Proposed replacement text",
+    "submit": "Submit for review",
+    "cancel": "Cancel",
+    "loading": "Loading workspace…",
+    "error": "Something could not be loaded.",
+    "retry": "Try again",
+    "selectChange": "Select a change to inspect its evidence.",
+    "before": "Original document",
+    "after": "Proposed document",
+    "impact": "Potential impact",
+    "impactNote": "These are dependencies, not confirmed answer changes. Only your own private answers are shown. Lists are capped at 200.",
+    "derived": "Dependent conclusions",
+    "affectedAnswers": "Your dependent answers",
+    "affectedFacts": "Dependent facts",
+    "approve": "Approve & queue processing",
+    "reject": "Reject proposal",
+    "decisionNote": "Reviewer note",
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "stale": "Document changed — create a fresh proposal.",
+    "queued": "Approved. Document processing has been queued.",
+    "rejectedNotice": "Proposal rejected. Live knowledge is unchanged.",
+    "proposalSaved": "Proposal saved for review.",
+    "traceSelect": "Select an answer to inspect its evidence.",
+    "original": "Captured answer",
+    "rerun": "Run comparison",
+    "replay": "Document replay",
+    "replayNote": "A fresh document-only answer using the selected evidence. Graph tools, SQL results and prior conversation context are not rerun. Output may vary.",
+    "now": "Current evidence",
+    "asOf": "As known at (UTC)",
+    "scenario": "Proposed change (optional)",
+    "noScenario": "No proposed change",
+    "comparison": "New answer",
+    "evidence": "Evidence at capture",
+    "sources": "sources",
+    "noEvidence": "No document sources captured. Inspect the tool exchange for graph or database evidence.",
+    "tools": "Recorded tool exchange",
+    "model": "Model",
+    "notRecorded": "Not recorded",
+    "export": "Export trace",
+    "query": "Search documents",
+    "search": "Search evidence",
+    "searchHint": "Leave the date empty for current knowledge. Historical keyword search uses Postgres lexical ranking; multilingual tokenization differs from current search.",
+    "noResults": "No evidence matched this query at the selected time.",
+    "matches": "Matching evidence",
+    "health": "Needs attention",
+    "failed": "Documents with processing errors",
+    "retained": "Retained historical chunks",
+    "gettingStarted": "Make your knowledge reviewable",
+    "step1": "01 / Connect your evidence",
+    "step1Body": "Upload documents or configure a source in the library.",
+    "step2": "02 / Ask with context",
+    "step2Body": "Every saved answer becomes an inspectable record.",
+    "step3": "03 / Review what changes",
+    "step3Body": "Stage an update and inspect its dependencies before approval.",
+    "previous": "Previous",
+    "next": "Next",
+    "unchanged": "Same answer text",
+    "changed": "Answer text changed",
+    "validation": "Citation structure",
+    "invalidCitations": "Unknown citation numbers",
+    "semanticNote": "Factual accuracy has not been automatically verified.",
+    "noCitations": "No numbered citations in this answer.",
+    "privacy": "Your answers are private to you.",
+    "dateInvalid": "Enter a valid UTC date and time.",
+    "reviewHint": "Editors propose. Knowledge-base admins approve. Updates use plain text and preserve the document identity.",
+    "noPending": "No pending proposals",
+    "loginLabel": "THE EVIDENCE BEHIND EVERY DECISION",
+    "loginTitle": "A living record.\nA clearer decision.",
+    "loginBody": "Connect your documents, follow their history, and understand what changes before you act.",
+    "permission": "Your role does not allow this action.",
+    "traceRedacted": "Evidence redacted following a source purge.",
+    "setup": "Business rules",
+    "setupIntro": "Make the assumptions behind your knowledge explicit. Review uniqueness suggestions in the ontology workbench before enabling them.",
+    "openOntology": "Review business rules",
+    "download": "Download",
+    "searchDocs": "Find a document by name",
+    "viewTrace": "Inspect answer",
+    "previewChange": "Compare with this proposal",
+    "status": "Status",
+    "created": "Created",
+    "pendingLabel": "Pending review"
+},
   app: {
-    name: "Utopia",
+    name: "Arcadia",
     // 化用《乌托邦》全书最后一句（Burnet 1684 译本）：
-    // "there are many things in the commonwealth of Utopia that I rather wish,
+    // "there are many things in the commonwealth of Arcadia that I rather wish,
     //  than hope, to see followed in our governments."
     // 改 I 为 We、去掉插入语逗号、留白 to see 的宾语。
-    tagline: "We rather wish than hope to see.",
-    taglineSource: "— Thomas More, 1516",
-    siteUrl: "https://utopia.bi",
-    docsUrl: "https://utopia.bi/docs",
+    tagline: "Knowledge moves. Keep the evidence.",
+    taglineSource: "",
+    siteUrl: "/",
+    docsUrl: "/docs",
   },
   /** 服务端校验错误的措辞。key = 服务端给的 code；缺一条就退回英文原句，不会崩。
       契约守卫（调错接口才碰得到）刻意不在这里——它们的读者是开发者 */
@@ -89,8 +220,8 @@ export const en = {
   },
   account: {
     /* 账户区字标：Persona——你在这座城里的身份面具 */
-    brand: "Utopia Persona",
-    /* 网页标题用的短名：`Utopia | Persona` */
+    brand: "Arcadia Persona",
+    /* 网页标题用的短名：`Arcadia | Persona` */
     titleTag: "Persona",
     profile: "Profile",
     administration: "Administration",
@@ -123,7 +254,7 @@ export const en = {
     tokensNav: "Agents & tokens",
     tokensTitle: "Personal access tokens",
     tokensHint:
-      "A token lets an agent reach Utopia over MCP as you, never with more than you can do yourself. Read-only by default, limited to the bases you pick, revocable here at any time.",
+      "A token lets an agent reach Arcadia over MCP as you, never with more than you can do yourself. Read-only by default, limited to the bases you pick, revocable here at any time.",
     newToken: "New token",
     tokenName: "Name",
     tokenNamePlaceholder: "My laptop",
@@ -140,7 +271,7 @@ export const en = {
     issueToken: "Create token",
     issuedTitle: "Copy it now. It will not be shown again.",
     issuedHint:
-      "Utopia keeps only a hash of it. If you lose it, revoke it here and create another.",
+      "Arcadia keeps only a hash of it. If you lose it, revoke it here and create another.",
     copy: "Copy",
     copied: "Copied",
     mcpTitle: "MCP client configuration",
@@ -169,8 +300,8 @@ export const en = {
   },
   docs: {
     /* 文档区字标：Charter——理想之城的立城宪章，与主字标同字体同字号 */
-    brand: "Utopia Charter",
-    backTitle: "Back to Utopia",
+    brand: "Arcadia Charter",
+    backTitle: "Back to Arcadia",
     searchPlaceholder: "Search the docs…",
     noResults: "No matches.",
   },
@@ -252,8 +383,8 @@ export const en = {
     docs: "Docs",
     loading: "Loading…",
     serverUnreachable:
-      "Punishment 500: Utopia has gone quiet — it isn't answering.",
-    notFound: "Punishment 404: You are lost in Utopia.",
+      "Punishment 500: Arcadia has gone quiet — it isn't answering.",
+    notFound: "Punishment 404: You are lost in Arcadia.",
     returnHome: "Return home",
     reportIssue: "Report an issue",
     refresh: "Refresh",
@@ -298,12 +429,12 @@ export const en = {
     backToSignIn: "← Back to sign in",
     privacy: {
       title: "Privacy policy",
-      note: "Default text bundled with Utopia. The organization operating this deployment may replace it with its own policy.",
+      note: "Default text bundled with Arcadia. The organization operating this deployment may replace it with its own policy.",
       sections: [
         {
           h: "A self-hosted platform",
           body: [
-            "Utopia runs entirely on infrastructure chosen by the organization that deployed it (the operator). The Utopia project has no access to this deployment: the software sends no telemetry, no analytics and no crash reports to anyone.",
+            "Arcadia runs entirely on infrastructure chosen by the organization that deployed it (the operator). The Arcadia project has no access to this deployment: the software sends no telemetry, no analytics and no crash reports to anyone.",
           ],
         },
         {
@@ -343,12 +474,12 @@ export const en = {
     },
     terms: {
       title: "Terms of use",
-      note: "Default text bundled with Utopia. The organization operating this deployment may replace it with its own terms.",
+      note: "Default text bundled with Arcadia. The organization operating this deployment may replace it with its own terms.",
       sections: [
         {
           h: "About these terms",
           body: [
-            "This instance of Utopia is operated by the organization that deployed it, not by the Utopia project. Your use of it is governed by that organization's own policies; these default terms cover the basics until the operator replaces them.",
+            "This instance of Arcadia is operated by the organization that deployed it, not by the Arcadia project. Your use of it is governed by that organization's own policies; these default terms cover the basics until the operator replaces them.",
           ],
         },
         {
@@ -375,7 +506,7 @@ export const en = {
         {
           h: "The software",
           body: [
-            "Utopia is open-source software provided “as is”, without warranty of any kind. Responsibility for operating this deployment — including backups, availability and compliance — lies with the operator.",
+            "Arcadia is open-source software provided “as is”, without warranty of any kind. Responsibility for operating this deployment — including backups, availability and compliance — lies with the operator.",
           ],
         },
       ],
@@ -548,7 +679,7 @@ export const en = {
         "own clock rather than ours.",
       api: "External systems push JSON documents here, authenticated with this source's own token.",
       custom:
-        "Polls a URL you control on a schedule — your service returns JSON items and Utopia keeps them in sync.",
+        "Polls a URL you control on a schedule — your service returns JSON items and Arcadia keeps them in sync.",
       memory:
         "Episodes remembered from Chat. Append-only: contradicted memories close their " +
         "validity range instead of being deleted — the timeline keeps the whole story.",
@@ -686,7 +817,7 @@ export const en = {
   },
   ask: {
     /* 新对话首屏问候：碑铭衬线，品牌名入句（标题不带句号） */
-    greeting: "Ask Utopia what it remembers",
+    greeting: "Ask Arcadia what it remembers",
     emptyTitle: "Chat",
     emptyBody:
       "Converse with your knowledge base — cited answers, temporal questions, and it can remember.\nUpload documents in Library and configure a model in Administration → Models first.",
@@ -1273,7 +1404,7 @@ export const en = {
     /* 出现过但今天不投影的公理，按名字与次数列出——"暂未投影"不是"已跳过" */
     importUnprojected: "Not projected yet",
     importUnprojectedBody:
-      "Axioms this file uses that Utopia does not consume yet. Nothing is lost: the source file is stored as uploaded, so a later version can project them.",
+      "Axioms this file uses that Arcadia does not consume yet. Nothing is lost: the source file is stored as uploaded, so a later version can project them.",
     importDone: (created: number, updated: number) =>
       `Imported — ${created} classes created, ${updated} updated.`,
     importHistory: "Previous imports",
@@ -1352,7 +1483,7 @@ export const en = {
     undoCancel: "Keep",
     /* 自动扩本体的通知：默认开启的前提是它的动作可见且可退。
        只记在审计台账里不算可见——那是查证用的，不是通知用的 */
-    autoRanTitle: "Utopia extended this ontology from your documents",
+    autoRanTitle: "Arcadia extended this ontology from your documents",
     autoRanBody: (rels: string[], facts: number) =>
       `Added ${rels.join(", ")} · ${facts} fact${facts === 1 ? "" : "s"} reclassified`,
     autoRanOff: "Turn this off in knowledge base settings.",
@@ -1713,7 +1844,7 @@ export const en = {
     autoExtendNote:
       "When extraction meets a relation this ontology does not have, add it and reclassify the " +
       "facts that were waiting for it. Every change is listed and can be undone. Turning this " +
-      "off does not stop Utopia from noticing — the phrases still collect under Unmatched, they " +
+      "off does not stop Arcadia from noticing — the phrases still collect under Unmatched, they " +
       "just wait for you to approve them.",
     materialize: "Materialize inferences",
     materializeNote:

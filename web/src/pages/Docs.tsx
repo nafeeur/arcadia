@@ -19,10 +19,12 @@ import {
 import { HeaderActions } from "./HeaderActions";
 import { usePageTitle } from "../useTitle";
 import ingestMd from "../docs/ingest.md?raw";
+import arcadiaMd from "../docs/arcadia.md?raw";
 import mcpMd from "../docs/mcp.md?raw";
 
 /** 文档清单：slug → 标题 + 内容（构建期打进 bundle） */
 const DOCS: { slug: string; title: string; body: string }[] = [
+  { slug: "arcadia", title: S.arcadia.guideTitle, body: arcadiaMd },
   { slug: "ingest", title: "Ingest interfaces", body: ingestMd },
   { slug: "mcp", title: "Agents over MCP", body: mcpMd },
 ];

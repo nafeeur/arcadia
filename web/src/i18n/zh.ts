@@ -5,18 +5,149 @@
 // 抽取 / 摄入 / 来源 / 文本块 / 图谱 / 审阅 / 冲突 / 合并 / 置信度 / 时态 /
 // 函数性 / 提示词 / 三元组。
 //
-// **不译的东西**：品牌字标（Utopia / Persona / Charter）、标识符（key、IRI）、
+// **不译的东西**：品牌字标（Arcadia / Persona / Charter）、标识符（key、IRI）、
 // 产品名（DeepSeek、Ollama…）、URL。字标不译是因为它们是标记不是词。
 import type { Strings } from "./en";
 
 export const zh: Strings = {
+  arcadia: {
+    upstreamSource: "Utopia 上游源码",
+    savedRuns: "已保存的比较（最近 20 次）",
+    proposalRun: "变更提案证据",
+    guideTitle: "Arcadia：证据与变化",
+    "sso": "单点登录",
+    "ssoLogin": "通过组织单点登录",
+    "ssoIntro": "将现有账号与组织身份提供商中的准确身份关联。",
+    "ssoDisabled": "尚未配置单点登录。请在部署环境中设置签发者、客户端 ID 和回调地址。",
+    "issuer": "身份提供商",
+    "subject": "身份提供商主体（sub）",
+    "account": "账号",
+    "linkIdentity": "关联身份",
+    "unlinkIdentity": "取消关联",
+    "ssoNote": "账号必须预先创建。Arcadia 不会按邮箱自动关联身份，也不会在单点登录时创建账号。",
+    "selectAccount": "选择账号",
+
+    "home": "概览",
+    "changes": "变更审核",
+    "traces": "回答账本",
+    "history": "证据浏览",
+    "workspace": "知识工作区",
+    "edition": "ARCADIA / 01",
+    "knowledge": "知识",
+    "governance": "治理",
+    "tagline": "知识在变化，证据有迹可循。",
+    "intro": "了解已知信息、变化和需要复核的内容。",
+    "live": "工作区概览",
+    "documents": "文档",
+    "facts": "有效事实",
+    "pending": "待审核",
+    "answers": "我的回答记录",
+    "viewAll": "查看全部",
+    "recentChanges": "审核工作台",
+    "recentAnswers": "最近回答",
+    "emptyChanges": "暂无待审核变更。",
+    "emptyAnswers": "从下一次对话开始记录。",
+    "emptyAnswersBody": "在对话中提问，Arcadia 会在这里保留回答、文档证据和工具调用记录。",
+    "openChat": "提问",
+    "openLibrary": "打开文档库",
+    "newChange": "提出变更",
+    "changeIntro": "在更新共享知识之前，先审阅证据。",
+    "traceIntro": "查看原始回答、支撑证据，以及重新运行后的结果。",
+    "historyIntro": "检索知识库在指定时刻所保留的信息。",
+    "document": "文档",
+    "chooseDocument": "选择就绪文档",
+    "title": "变更标题",
+    "reason": "变更原因",
+    "replacement": "建议替换文本",
+    "submit": "提交审核",
+    "cancel": "取消",
+    "loading": "正在加载…",
+    "error": "部分内容无法加载。",
+    "retry": "重试",
+    "selectChange": "选择一个变更，查看其证据。",
+    "before": "变更前的原文",
+    "after": "建议文档",
+    "impact": "潜在影响",
+    "impactNote": "这些是依赖关系，不代表回答一定会变化。只展示你本人的私有回答。每个列表最多展示 200 项。",
+    "derived": "关联推导结论",
+    "affectedAnswers": "你的关联回答",
+    "affectedFacts": "关联事实",
+    "approve": "批准并排队处理",
+    "reject": "拒绝提案",
+    "decisionNote": "审核备注",
+    "approved": "已批准",
+    "rejected": "已拒绝",
+    "stale": "文档已变化，请重新提出变更。",
+    "queued": "已批准，文档处理任务已入队。",
+    "rejectedNotice": "提案已拒绝，当前知识未改变。",
+    "proposalSaved": "提案已保存，等待审核。",
+    "traceSelect": "选择一个回答，查看其证据。",
+    "original": "原始回答",
+    "rerun": "运行比较",
+    "replay": "文档重放",
+    "replayNote": "根据所选文档证据生成新回答。不会重新执行图谱工具、SQL 查询或历史对话上下文，输出可能变化。",
+    "now": "当前证据",
+    "asOf": "认知时间（UTC）",
+    "scenario": "变更提案（可选）",
+    "noScenario": "不使用变更提案",
+    "comparison": "新回答",
+    "evidence": "当时的证据",
+    "sources": "条来源",
+    "noEvidence": "未记录文档来源。图谱或数据库证据可在工具调用记录中查看。",
+    "tools": "工具调用记录",
+    "model": "模型",
+    "notRecorded": "未记录",
+    "export": "导出回答记录",
+    "query": "搜索文档",
+    "search": "搜索证据",
+    "searchHint": "留空日期以检索当前知识。历史关键词检索使用 Postgres 词法排序，多语言分词方式与当前检索不同。",
+    "noResults": "所选时刻没有匹配的证据。",
+    "matches": "匹配证据",
+    "health": "需要关注",
+    "failed": "处理出错的文档",
+    "retained": "保留的历史文本块",
+    "gettingStarted": "让知识经得起复核",
+    "step1": "01 / 接入证据",
+    "step1Body": "上传文档，或在文档库中配置数据来源。",
+    "step2": "02 / 带着上下文提问",
+    "step2Body": "每次保存的回答都会成为可检查的记录。",
+    "step3": "03 / 审核变化",
+    "step3Body": "提出更新，在批准之前检查依赖关系。",
+    "previous": "上一页",
+    "next": "下一页",
+    "unchanged": "回答文本相同",
+    "changed": "回答文本已变化",
+    "validation": "引用结构",
+    "invalidCitations": "不存在的引用编号",
+    "semanticNote": "系统未自动验证事实准确性。",
+    "noCitations": "此回答没有编号引用。",
+    "privacy": "回答仅对本人可见。",
+    "dateInvalid": "请输入有效的 UTC 日期和时间。",
+    "reviewHint": "编辑者提出变更，知识库管理员批准。更新使用纯文本，并保留文档标识。",
+    "noPending": "暂无待审核提案",
+    "loginLabel": "每个决策背后的证据",
+    "loginTitle": "记录持续演进。\n决策更加清晰。",
+    "loginBody": "连接文档，追溯历史，在采取行动前理解变化。",
+    "permission": "你的角色无权执行此操作。",
+    "traceRedacted": "来源被彻底删除后，关联证据已清除。",
+    "setup": "业务规则",
+    "setupIntro": "明确知识所依赖的假设。在启用唯一性规则前，请在本体工作台中审核建议。",
+    "openOntology": "审核业务规则",
+    "download": "下载",
+    "searchDocs": "按名称查找文档",
+    "viewTrace": "检查回答",
+    "previewChange": "与此提案比较",
+    "status": "状态",
+    "created": "创建时间",
+    "pendingLabel": "待审核"
+},
   app: {
-    name: "Utopia",
-    /* 标语与出处都与 Utopia / Persona / Charter 同类：品牌的一部分，两种语言同值 */
-    tagline: "We rather wish than hope to see.",
-    taglineSource: "— Thomas More, 1516",
-    siteUrl: "https://utopia.bi",
-    docsUrl: "https://utopia.bi/docs",
+    name: "Arcadia",
+    /* 标语与出处都与 Arcadia / Persona / Charter 同类：品牌的一部分，两种语言同值 */
+    tagline: "Knowledge moves. Keep the evidence.",
+    taglineSource: "",
+    siteUrl: "/",
+    docsUrl: "/docs",
   },
   err: {
     bad_email: "这看起来不像一个邮箱地址。",
@@ -79,7 +210,7 @@ export const zh: Strings = {
     added: "已加入本体",
   },
   account: {
-    brand: "Utopia Persona",
+    brand: "Arcadia Persona",
     titleTag: "Persona",
     profile: "个人资料",
     administration: "管理",
@@ -111,7 +242,7 @@ export const zh: Strings = {
     tokensNav: "Agent 与令牌",
     tokensTitle: "个人访问令牌",
     tokensHint:
-      "令牌让 agent 经 MCP 以你的身份使用 Utopia，权限永远不超过你自己。缺省只读，限定到你选的库，随时可在这里撤销。",
+      "令牌让 agent 经 MCP 以你的身份使用 Arcadia，权限永远不超过你自己。缺省只读，限定到你选的库，随时可在这里撤销。",
     newToken: "新令牌",
     tokenName: "名字",
     tokenNamePlaceholder: "我的笔记本",
@@ -127,7 +258,7 @@ export const zh: Strings = {
     expiresNever: "不过期",
     issueToken: "创建令牌",
     issuedTitle: "现在就复制，之后不会再显示。",
-    issuedHint: "Utopia 只保存它的哈希。丢了就在这里撤销，再建一枚。",
+    issuedHint: "Arcadia 只保存它的哈希。丢了就在这里撤销，再建一枚。",
     copy: "复制",
     copied: "已复制",
     mcpTitle: "MCP 客户端配置",
@@ -155,8 +286,8 @@ export const zh: Strings = {
     },
   },
   docs: {
-    brand: "Utopia Charter",
-    backTitle: "返回 Utopia",
+    brand: "Arcadia Charter",
+    backTitle: "返回 Arcadia",
     searchPlaceholder: "搜索文档…",
     noResults: "没有匹配。",
   },
@@ -226,8 +357,8 @@ export const zh: Strings = {
     signOut: "退出登录",
     docs: "文档",
     loading: "加载中…",
-    serverUnreachable: "罚则 500：Utopia 沉默了——它没有回应。",
-    notFound: "罚则 404：你在 Utopia 里迷了路。",
+    serverUnreachable: "罚则 500：Arcadia 沉默了——它没有回应。",
+    notFound: "罚则 404：你在 Arcadia 里迷了路。",
     returnHome: "回到首页",
     reportIssue: "反馈问题",
     refresh: "刷新",
@@ -265,12 +396,12 @@ export const zh: Strings = {
     backToSignIn: "← 返回登录",
     privacy: {
       title: "隐私政策",
-      note: "Utopia 自带的默认文本。运营本部署的组织可以替换成自己的政策。",
+      note: "Arcadia 自带的默认文本。运营本部署的组织可以替换成自己的政策。",
       sections: [
         {
           h: "一个自部署的平台",
           body: [
-            "Utopia 完全运行在部署方（运营者）自行选择的基础设施上。Utopia 项目本身接触不到这个部署：软件不向任何人发送遥测、分析或崩溃报告。",
+            "Arcadia 完全运行在部署方（运营者）自行选择的基础设施上。Arcadia 项目本身接触不到这个部署：软件不向任何人发送遥测、分析或崩溃报告。",
           ],
         },
         {
@@ -310,12 +441,12 @@ export const zh: Strings = {
     },
     terms: {
       title: "使用条款",
-      note: "Utopia 自带的默认文本。运营本部署的组织可以替换成自己的条款。",
+      note: "Arcadia 自带的默认文本。运营本部署的组织可以替换成自己的条款。",
       sections: [
         {
           h: "关于这份条款",
           body: [
-            "这个 Utopia 实例由部署它的组织运营，而非 Utopia 项目。你对它的使用受该组织自身政策约束；在运营者替换之前，这份默认条款覆盖基本事项。",
+            "这个 Arcadia 实例由部署它的组织运营，而非 Arcadia 项目。你对它的使用受该组织自身政策约束；在运营者替换之前，这份默认条款覆盖基本事项。",
           ],
         },
         {
@@ -342,7 +473,7 @@ export const zh: Strings = {
         {
           h: "关于本软件",
           body: [
-            "Utopia 是开源软件，按「原样」提供，不附带任何形式的担保。运营本部署的责任——包括备份、可用性与合规——由运营者承担。",
+            "Arcadia 是开源软件，按「原样」提供，不附带任何形式的担保。运营本部署的责任——包括备份、可用性与合规——由运营者承担。",
           ],
         },
       ],
@@ -496,7 +627,7 @@ export const zh: Strings = {
         "日期取页面最后一次编辑的时刻，那是页面自己的时钟，不是我们抓它的时刻。",
       api: "外部系统把 JSON 文档推送到这里，用这个来源自己的令牌认证。",
       custom:
-        "按计划轮询一个你控制的 URL——你的服务返回 JSON 条目，Utopia 保持同步。",
+        "按计划轮询一个你控制的 URL——你的服务返回 JSON 条目，Arcadia 保持同步。",
       memory:
         "从「对话」中记下的片段。只追加：被推翻的记忆是闭合有效区间，而不是删除——" +
         "时间线保留完整的来龙去脉。",
@@ -629,7 +760,7 @@ export const zh: Strings = {
     chunkOf: (filename: string, seq: number) => `${filename} · 第 ${seq} 段`,
   },
   ask: {
-    greeting: "问问 Utopia 记得什么",
+    greeting: "问问 Arcadia 记得什么",
     emptyTitle: "对话",
     emptyBody:
       "与你的知识库对话——带引用的回答、关于时间的提问，而且它会记住。\n请先在「文库」上传文档，并在「管理 → 模型」里配置模型。",
@@ -1129,7 +1260,7 @@ export const zh: Strings = {
       iri ? `被 ${iri} 占用` : "被这个知识库里已有的条目占用",
     importUnprojected: "暂未投影",
     importUnprojectedBody:
-      "这个文件用到、而 Utopia 目前还不消费的公理。什么都没丢：原文按上传时的样子存着，将来的版本可以投影它们。",
+      "这个文件用到、而 Arcadia 目前还不消费的公理。什么都没丢：原文按上传时的样子存着，将来的版本可以投影它们。",
     importDone: (created: number, updated: number) =>
       `导入完成——新建 ${created} 个类，更新 ${updated} 个。`,
     importHistory: "历次导入",
@@ -1181,7 +1312,7 @@ export const zh: Strings = {
       `什么都不会被删除，之后仍可再次采纳。`,
     undoConfirm: "撤销",
     undoCancel: "保持",
-    autoRanTitle: "Utopia 依据你的文档扩展了这个本体",
+    autoRanTitle: "Arcadia 依据你的文档扩展了这个本体",
     autoRanBody: (rels: string[], facts: number) =>
       `新增 ${rels.join("、")} · ${facts} 条事实已重新归类`,
     autoRanOff: "可在知识库设置里关掉它。",
@@ -1497,7 +1628,7 @@ export const zh: Strings = {
     autoExtend: "自动扩展本体",
     autoExtendNote:
       "当抽取遇到这个本体里没有的关系时，把它加进来，并把一直等着它的那些事实重新归类。" +
-      "每一次变更都会列出，并且可以撤销。关掉它并不会让 Utopia 不再留意——" +
+      "每一次变更都会列出，并且可以撤销。关掉它并不会让 Arcadia 不再留意——" +
       "那些说法仍然会汇集到「未匹配」下，只是要等你点头。",
     materialize: "物化推理",
     materializeNote:

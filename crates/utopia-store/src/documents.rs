@@ -1229,12 +1229,13 @@ pub async fn vector_search(
 ) -> AppResult<Vec<Uuid>> {
     let query_vec = Vector::from(embedding.to_vec());
     let rows: Vec<(Uuid,)> = sqlx::query_as(&format!(
-        "SELECT id FROM chunks c
-         WHERE c.kb_id = $1 AND c.embedding IS NOT NULL AND {live}
+        "SELECT c.id FROM chunks c JOIN documents d ON d.id=c.document_id
+         WHERE c.kb_id = $1 AND c.embedding IS NOT NULL AND {live} AND {doc_live}
            AND vector_dims(c.embedding) = vector_dims($2)
          ORDER BY c.embedding <=> $2
          LIMIT $3",
         live = crate::record_axis::chunk_live_at("c", 4),
+        doc_live = crate::record_axis::document_live_at("d", 4),
     ))
     .bind(kb_id)
     .bind(&query_vec)
@@ -1419,4 +1420,25 @@ pub async fn live_chunk_count(pool: &PgPool) -> AppResult<i64> {
             .fetch_one(pool)
             .await?,
     )
+}
+
+/// Historical lexical retrieval filters retained versions before ranking/limiting.
+/// The simple dictionary is multilingual but does not replicate Tantivy's Jieba tokenizer.
+pub async fn lexical_search(
+    pool: &PgPool,
+    kb_id: Uuid,
+    query: &str,
+    limit: i64,
+    as_of: Option<DateTime<Utc>>,
+) -> AppResult<Vec<Uuid>> {
+    Ok(sqlx::query_scalar(&format!(
+        "SELECT c.id FROM chunks c JOIN documents d ON d.id = c.document_id
+         WHERE c.kb_id = $1 AND {live} AND {doc_live}
+         AND to_tsvector('simple', c.text) @@ websearch_to_tsquery('simple', $2)
+         ORDER BY ts_rank_cd(to_tsvector('simple', c.text), websearch_to_tsquery('simple', $2)) DESC, c.id
+         LIMIT $3",
+        live = crate::record_axis::chunk_live_at("c", 4),
+        doc_live = crate::record_axis::document_live_at("d", 4),
+    )).bind(kb_id).bind(query).bind(limit.clamp(1, 500)).bind(as_of)
+      .fetch_all(pool).await?)
 }

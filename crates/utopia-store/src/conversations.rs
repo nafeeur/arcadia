@@ -199,6 +199,8 @@ pub async fn recent_context(pool: &PgPool, conversation_id: Uuid, n: i64) -> App
 /// 一条能落库、也能读回来、只是内容张冠李戴的记录。与 `RelationAxioms` 同一条理由。
 #[derive(Default)]
 pub struct TurnRecord {
+    /// Model identity and run metadata; never credentials.
+    pub metadata: serde_json::Value,
     /// 行动轨迹：调了什么、拿到多少（界面显示）
     pub steps: serde_json::Value,
     /// 引用清单
@@ -214,6 +216,7 @@ impl TurnRecord {
     /// 用户消息：四样都空。
     pub fn empty() -> Self {
         Self {
+            metadata: serde_json::json!({}),
             steps: serde_json::json!([]),
             sources: serde_json::json!([]),
             resolved: serde_json::json!([]),
@@ -231,6 +234,9 @@ pub async fn append_message(
 ) -> AppResult<Uuid> {
     let id = Uuid::now_v7();
     let mut tx = pool.begin().await?;
+    if role == "assistant" {
+        crate::arcadia::lock_evidence_sources(&mut tx, &rec.sources).await?;
+    }
     sqlx::query(
         "INSERT INTO conversation_messages
              (id, conversation_id, role, content, steps, sources, resolved, tool_exchange)
@@ -250,6 +256,25 @@ pub async fn append_message(
         .bind(conversation_id)
         .execute(&mut *tx)
         .await?;
+    if role == "assistant" {
+        sqlx::query(
+            "INSERT INTO arcadia_traces
+              (id, kb_id, user_id, message_id, question, answer, evidence, tool_exchange, metadata)
+             SELECT $1, c.kb_id, c.user_id, $1,
+               COALESCE($6::jsonb->>'question', (SELECT m.content FROM conversation_messages m
+                 WHERE m.conversation_id = c.id AND m.role = 'user'
+                 ORDER BY m.created_at DESC, m.id DESC LIMIT 1), c.title),
+               $3, $4, $5, $6 FROM conversations c WHERE c.id = $2",
+        )
+        .bind(id)
+        .bind(conversation_id)
+        .bind(content)
+        .bind(&rec.sources)
+        .bind(&rec.tool_exchange)
+        .bind(&rec.metadata)
+        .execute(&mut *tx)
+        .await?;
+    }
     tx.commit().await?;
     Ok(id)
 }

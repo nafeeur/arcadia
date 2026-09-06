@@ -51,59 +51,59 @@
 }
 
 /* ============================================================
-   Utopia design tokens — Vercel-style neutral dark + glass.
+   Arcadia design tokens — warm paper, evergreen and legible evidence surfaces.
    Chromatic color is reserved for DATA (graph entities, status);
    the chrome itself is monochrome.
    ============================================================ */
 :root {
   font-family: var(--font-sans);
-  color-scheme: dark;
+  color-scheme: light;
 
   /* 品牌字：碑铭式衬线（Marcellus 仅 400，一字不粗） */
   --font-brand: "Marcellus", "Georgia", "Times New Roman", serif;
 
-  --u-ground: #0a0a0a;
-  --u-text: #ededed;
-  --u-text-2: #a1a1a1;
-  --u-text-3: #6e6e6e;
+  --u-ground: #f4f3ee;
+  --u-text: #222b29;
+  --u-text-2: #5d6864;
+  --u-text-3: #747d76;
 
   /* 单色 chrome：accent 也是中性亮灰，彩色只属于数据（实体色/状态语义色） */
-  --u-accent: #d4d4d4;
-  --u-accent-deep: 255, 255, 255;
+  --u-accent: #365c4b;
+  --u-accent-deep: 54, 92, 75;
 
-  --u-ok: #4cc38a;
-  --u-warn: #f2b66d;
+  --u-ok: #28754d;
+  --u-warn: #94631d;
   /* 浅玫瑰：深底上的危险"文字/描边/点"专用（够亮才可读） */
-  --u-danger: #ff9daf;
+  --u-danger: #ae3942;
   /* 0017：争议色。派生撞上断言、被挡下的派生——警告与危险之外的第三种 */
-  --u-contest: #ff6a3d;
+  --u-contest: #b24c24;
   /* 深红：危险"实底按钮"专用（浅玫瑰做底会发粉；亮红在单色 chrome 上嗓门过大），配白字 */
   --u-danger-solid: #c9353a;
-  --u-violet: #c4a5ff;
+  --u-violet: #7660a2;
 
-  --u-line: rgba(255, 255, 255, 0.08);
-  --u-line-strong: rgba(255, 255, 255, 0.14);
+  --u-line: #dddeda;
+  --u-line-strong: #c7cdc5;
   /* 三档面：静止 / 指针停上 / 选中。页面里所有 white/N 都归到这三档 */
-  --u-surface: rgba(255, 255, 255, 0.04);
-  --u-surface-2: rgba(255, 255, 255, 0.06);
-  --u-surface-3: rgba(255, 255, 255, 0.1);
+  --u-surface: #fafbf8;
+  --u-surface-2: #eeefe8;
+  --u-surface-3: #e4e9de;
   /* 键盘焦点环：够亮，因为它是键盘用户唯一的"我在哪" */
-  --u-ring: rgba(255, 255, 255, 0.6);
+  --u-ring: #357354;
   /* 凹下去的一格：代码块、令牌那种"这是原样内容"的底 */
-  --u-well: rgba(0, 0, 0, 0.4);
+  --u-well: #eaece5;
   /* 动效两档：进入 fast、离开 base（见 .glass-strong 上的说明） */
   --u-fast: 120ms;
   --u-base: 260ms;
-  --u-surface-strong: rgba(10, 10, 10, 0.72);
+  --u-surface-strong: #fcfcf9;
   /* 指针停在面上时的实底。**毛玻璃是给"没在看它"的时候用的**——
      半透让浮层不至于把画布切断；可一旦人把指针移进来，他要读的就是面板本身，
      这时候背后的图反而是噪声。所以这两档不是审美偏好，是同一块面在
      "余光里"和"正在读"两种状态下该有的样子。
      统一在这里定义，改一处四处都跟着：顶栏、导航、时间岛、控件塔、
      以及所有 u-menu-glass 的弹出面板 */
-  --u-surface-strong-hover: rgba(10, 10, 10, 0.94);
-  --u-menu-surface: rgba(14, 14, 14, 0.85);
-  --u-menu-surface-hover: rgba(14, 14, 14, 0.97);
+  --u-surface-strong-hover: #ffffff;
+  --u-menu-surface: #fcfcf9;
+  --u-menu-surface-hover: #ffffff;
 }
 
 body {
@@ -351,7 +351,7 @@ body::before {
   transition: background-color var(--u-base) ease;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--u-line-strong);
 }
 .u-menu-glass:hover {
   background: var(--u-menu-surface-hover);
@@ -510,7 +510,7 @@ select.input-dark option {
 .u-btn-primary:hover:not(:disabled),
 .btn-primary:hover:not(:disabled) {
   background: #ffffff;
-  border-color: #ffffff;
+  border-color: var(--u-text);
 }
 .u-btn-secondary,
 .u-btn-ghost,
@@ -538,9 +538,10 @@ select.input-dark option {
 }
 /* 危险实底：深红配白字（浅玫瑰做底会发粉，见 --u-danger-solid） */
 .u-btn-danger {
+  --u-text: #ffffff;
   background: var(--u-danger-solid);
   border: 1px solid var(--u-danger-solid);
-  color: #ffffff;
+  color: var(--u-text);
   font-weight: 600;
 }
 .u-btn-danger:hover:not(:disabled) {
@@ -575,7 +576,7 @@ select.input-dark option {
   background: var(--u-surface-2);
 }
 .u-tool.is-on {
-  color: #ffffff;
+  color: var(--u-text);
   background: var(--u-surface-3);
 }
 .u-tool:focus-visible {
@@ -765,7 +766,7 @@ select.input-dark option {
 }
 .u-tab.is-active {
   color: var(--u-text);
-  border-bottom-color: #ffffff;
+  border-bottom-color: var(--u-text);
 }
 /* 选中的那一页从下划线往上透一点光：白 6% 在底，到一半高处就没了——说的是
    「光从线上来」，不是给标签涂一块底。压在文字后面，不接指针 */
@@ -776,7 +777,7 @@ select.input-dark option {
   z-index: -1;
   background: linear-gradient(
     to top,
-    rgba(255, 255, 255, 0.06),
+    var(--u-surface-2),
     rgba(255, 255, 255, 0) 50%
   );
   pointer-events: none;
@@ -806,7 +807,7 @@ select.input-dark option {
 /* 对话输入框的外壳 */
 .u-composer {
   border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--u-surface-3);
   background: var(--u-surface);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -856,12 +857,12 @@ select.input-dark option {
   white-space: nowrap;
 }
 .u-chip-neutral {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--u-surface-2);
   color: var(--u-text-2);
 }
 .u-chip-info {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ededed;
+  background: var(--u-surface-3);
+  color: var(--u-text);
 }
 .u-chip-success {
   background: rgba(76, 195, 138, 0.12);
@@ -919,17 +920,17 @@ select.input-dark option {
 
 /* ---- interactive accents ---- */
 .u-bubble-user {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: var(--u-surface-2);
+  border: 1px solid var(--u-line-strong);
 }
 .u-highlight {
   border-color: rgba(255, 255, 255, 0.45) !important;
-  background: rgba(255, 255, 255, 0.06) !important;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12);
+  background: var(--u-surface-2) !important;
+  box-shadow: 0 0 0 2px var(--u-surface-3);
 }
 .u-nav-active {
   background: rgba(255, 255, 255, 0.09);
-  color: #ffffff;
+  color: var(--u-text);
 }
 
 /* 引用定位闪现：进场强光收敛到持有亮度（运动比静态边框更抓眼）。
@@ -938,7 +939,7 @@ select.input-dark option {
 @keyframes u-flash-kf {
   0% {
     border-color: rgba(255, 255, 255, 0.9);
-    background-color: rgba(255, 255, 255, 0.14);
+    background-color: var(--u-line-strong);
     box-shadow:
       0 0 0 3px rgba(255, 255, 255, 0.3),
       0 0 36px rgba(255, 255, 255, 0.16);
@@ -948,7 +949,7 @@ select.input-dark option {
     background-color: rgba(255, 255, 255, 0.07);
     box-shadow:
       0 0 0 2px rgba(255, 255, 255, 0.16),
-      0 0 18px rgba(255, 255, 255, 0.06);
+      0 0 18px var(--u-surface-2);
   }
 }
 .u-flash {
@@ -981,10 +982,10 @@ select.input-dark option {
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: -0.01em;
-  color: #ffffff;
+  color: var(--u-text);
 }
 .brand-gradient {
-  color: #ffffff;
+  color: var(--u-text);
   letter-spacing: -0.02em;
 }
 }
@@ -1119,7 +1120,7 @@ a:hover > .u-mark-arrow {
 @supports not selector(::-webkit-scrollbar) {
   * {
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+    scrollbar-color: var(--u-line-strong) transparent;
   }
 }
 *::-webkit-scrollbar {
@@ -1130,7 +1131,7 @@ a:hover > .u-mark-arrow {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--u-line-strong);
   border-radius: 4px;
 }
 *::-webkit-scrollbar-thumb:hover {
@@ -1250,14 +1251,14 @@ a:hover > .u-mark-arrow {
   margin: 0.15em 0;
 }
 .u-chat-prose strong {
-  color: #ffffff;
+  color: var(--u-text);
   font-weight: 600;
 }
 .u-chat-prose h1,
 .u-chat-prose h2,
 .u-chat-prose h3 {
   font-weight: 600;
-  color: #ffffff;
+  color: var(--u-text);
   margin: 0.7em 0 0.3em;
   font-size: 1em;
 }
@@ -1269,7 +1270,7 @@ a:hover > .u-mark-arrow {
 }
 .u-chat-prose code {
   font-size: 0.85em;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--u-surface-2);
   border-radius: 4px;
   padding: 0.1em 0.35em;
 }

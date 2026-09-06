@@ -28,12 +28,12 @@ function PunishmentPage({
         <div className="mt-6 flex items-center justify-center gap-4">
           {children}
           <a
-            href={`${S.login.githubUrl}/issues`}
+            href="/docs/arcadia"
             target="_blank"
             rel="noreferrer"
             className="u-link text-small"
           >
-            {S.nav.reportIssue}
+            {S.arcadia.guideTitle}
           </a>
         </div>
       </div>

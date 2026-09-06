@@ -8,6 +8,10 @@ import {
 } from "@tanstack/react-router";
 import {
   Database,
+  LayoutDashboard,
+  GitPullRequest,
+  History,
+  Clock3,
   Library as LibraryIcon,
   ListChecks,
   MessagesSquare,
@@ -28,6 +32,10 @@ import { useKbEvents } from "../useKbEvents";
 import { usePageTitle } from "../useTitle";
 
 const TABS = [
+  { to: "/kb/$kbId/overview", label: S.arcadia.home, Icon: LayoutDashboard },
+  { to: "/kb/$kbId/changes", label: S.arcadia.changes, Icon: GitPullRequest },
+  { to: "/kb/$kbId/traces", label: S.arcadia.traces, Icon: History },
+  { to: "/kb/$kbId/history", label: S.arcadia.history, Icon: Clock3 },
   // 图谱是门面，排第一；两种查询方式（Search/Ask）随后
   { to: "/kb/$kbId/graph", label: S.nav.graph, Icon: Waypoints },
   { to: "/kb/$kbId/search", label: S.nav.search, Icon: SearchIcon },
@@ -55,7 +63,7 @@ export function Shell() {
   // 标题跟随当前 tab：`Graph · Utopia`；文档查看页归入 Library
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const tabLabel =
-    TABS.find((t) => pathname.startsWith(t.to))?.label ??
+    TABS.find((t) => pathname.startsWith(t.to.replace("$kbId", kbId)))?.label ??
     (pathname.startsWith("/doc/") ? S.nav.library : undefined);
   usePageTitle(S.app.name, tabLabel);
   // 全局唯一的 KB 事件流连接：文档/审核状态实时刷新（替轮询）
@@ -90,53 +98,61 @@ export function Shell() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden u-arrive">
-      {/* 顶栏：品牌 + 工作区 + 用户（Vercel 式） */}
-      {/* z-40：backdrop-filter 使顶栏与 tab 条各自成 stacking context，
-          不提权则后者按 DOM 序盖住顶栏内的弹出面板 */}
-      {/* 左内距 32px：字标的左缘落在下面第一个标签的图标上（nav px-4 + 标签
-          px-4）。字标与切换器之间 gap-1（切换器自己有 px-6）：切换器的图标正好落在
-          第二个标签的图标上（英文界面下的巧合，字标一换字号就得重量）——两行同一套节奏 */}
-      <header className="glass-strong relative z-40 border-x-0 border-t-0 h-14 shrink-0 flex items-center gap-1 px-8">
-        {/* 字标：逐字母淡入，hover 浮出 ↗，点击去官网 */}
-        <Wordmark className="text-display" />
-        {/* 知识库切换器紧跟字标，中间不画斜杠——它不是面包屑的第二级，就是
-            「现在在哪个库」。Workspace 已从概念层折叠为部署级隐形管道
-            （settings/members 仍经它走 API，如 organizations 之于单租户）。
-            左边的图标与账户页左栏「Knowledge bases」那一项同一个，说明这一串字
-            是库名；中号字与下面的标签同一个字号；箭头贴着名字，不顶到一个固定
-            宽度的右边去。
-            纯切换器：建库是管理动作，入口在 System settings › Knowledge bases */}
-        <KbSwitcher kb={kb} kbs={kbs} onChange={setKb} />
-        {/* 右上那一组三个顶栏共用一份（HeaderActions）：换页时它不该动 */}
-        <HeaderActions
-          link={{ to: "/docs", label: S.nav.docs }}
-          version={health.data?.version}
-          user={me.data}
-        />
-      </header>
-
-      {/* Tab 导航条：图标 + 文字，激活态下划线（Vercel 式） */}
-      {/* px-2：第一个标签的图标离左缘 24，比字标（32）再靠边一点——标签自带
-          16px 内距，与字标同缩进时整行看着比字标还往里 */}
-      <nav className="glass-strong border-x-0 border-t-0 shrink-0 flex items-stretch gap-1 px-2">
-        {TABS.map(({ to, label, Icon }) => (
-          <Link
-            key={to}
-            to={to}
-            params={{ kbId }}
-            className="u-tab"
-            activeProps={{ className: "u-tab is-active" }}
-          >
-            <Icon size={15} strokeWidth={1.8} />
-            {label}
-          </Link>
-        ))}
-      </nav>
-
-      <main className="flex-1 min-h-0">
-        <Outlet />
-      </main>
+    <div className="arc-shell">
+      <aside className="arc-sidebar">
+        <div className="arc-brand">
+          <Wordmark className="text-display" />
+          <span>01</span>
+        </div>
+        <p className="arc-eyebrow">{S.arcadia.workspace}</p>
+        <div className="arc-kb-switch">
+          <KbSwitcher kb={kb} kbs={kbs} onChange={setKb} />
+        </div>
+        <nav aria-label={S.arcadia.workspace}>
+          {TABS.map(({ to, label, Icon }, i) => (
+            <div key={to}>
+              {(i === 0 || i === 4 || i === 8) && (
+                <p className="arc-nav-group">
+                  {i === 0
+                    ? S.arcadia.governance
+                    : i === 4
+                      ? S.arcadia.knowledge
+                      : S.arcadia.setup}
+                </p>
+              )}
+              <Link
+                to={to}
+                params={{ kbId }}
+                className="arc-nav-item"
+                activeProps={{ className: "arc-nav-item is-active" }}
+              >
+                <Icon size={17} strokeWidth={1.6} />
+                <span>{label}</span>
+              </Link>
+            </div>
+          ))}
+        </nav>
+        <div className="arc-sidebar-footer">
+          <span>{S.app.name}</span>
+          <span>v{health.data?.version ?? "0.1"}</span>
+        </div>
+      </aside>
+      <div className="arc-main-shell">
+        <header className="arc-topbar">
+          <span className="arc-breadcrumb">
+            {kb?.name}
+            <span>/</span>
+            <strong>{tabLabel ?? S.arcadia.home}</strong>
+          </span>
+          <HeaderActions
+            link={{ to: "/docs", label: S.nav.docs }}
+            user={me.data}
+          />
+        </header>
+        <main className="arc-main">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

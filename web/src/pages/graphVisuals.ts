@@ -11,7 +11,7 @@ import type Sigma from "sigma";
 /* 画布调色板 —— 结构取自 Semantica GraphWorkspace 源码；基色已中性化：
    Semantica 原版是钢蓝系（#0B1320/#5A7A9E/#7A92AE），按"chrome 零色偏、
    彩色只属于数据"的既定原则换成同明度纯灰，类型色混入比例不变 */
-export const NODE_SHELL_BASE = "#121212"; // 节点外壳深底（原 #0B1320 的中性化）
+export const NODE_SHELL_BASE = "#d9e4d3"; // 节点外壳深底（原 #0B1320 的中性化）
 export const NODE_CORE_BASE = "#767676"; // 节点核心灰（原 #5A7A9E 的中性化）
 export const NODE_BORDER_BASE = "#909090"; // 节点描边（原 #7A92AE 的中性化）
 export const NODE_TINT_MIX = 0.14; // 类型色只按 14% 混入外壳（高级感的关键）
@@ -24,13 +24,13 @@ export const NODE_CORE_MIX = 0.5; // 核心向类型色的混入比例
 export const RING_HOVER_MIX = 0.7; // 悬停：偏白，为的是跳出来
 export const RING_SELECT_MIX = 0.35; // 选中：偏本色，为的是认得出
 export const TRANSPARENT = "rgba(0,0,0,0)";
-export const MUTED_SHELL = "#151515";
+export const MUTED_SHELL = "#d9ded6";
 /* 悬停时其余的压暗程度。**比选中轻**（选中是压到底）：悬停是随鼠标走的、
    每划过一个节点就换一次，压到底会让整张画布不停明灭 */
 export const HOVER_MUTE = 0.78;
-export const PILL_BG = "rgba(12,12,12,0.9)";
-export const PILL_BORDER = "rgba(255,255,255,0.14)";
-export const PILL_TEXT = "#ededed";
+export const PILL_BG = "rgba(252,252,249,0.96)";
+export const PILL_BORDER = "rgba(34,43,41,0.2)";
+export const PILL_TEXT = "#263c31";
 
 export function hexToRgb(hex: string): [number, number, number] {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex);

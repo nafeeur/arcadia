@@ -1,8 +1,8 @@
-name: CI
+name: Arcadia CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev, arcadia]
   pull_request:
 
 # **显式只读。** 没有这一块时它继承仓库级默认，而那个默认要为
@@ -29,6 +29,8 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test
         run: cargo test --workspace
+      - name: Backup integrity tests
+        run: python3 -m unittest discover -s scripts/arcadia -p 'test_*.py'
       - name: Build
         run: cargo build --workspace
 
@@ -77,7 +79,7 @@ jobs:
       - name: 连库测试
         run: |
           set -o pipefail
-          cargo test -p utopia-store 2>&1 | tee store-tests.log
+          cargo test -p utopia-store -p utopia-server 2>&1 | tee store-tests.log
         env:
           UTOPIA_DATABASE_URL: postgres://utopia:utopia@localhost:5432/utopia
           UTOPIA_TEST_REQUIRE_DB: "1"

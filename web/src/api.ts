@@ -12,7 +12,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     credentials: "include",
     headers:
@@ -1533,7 +1533,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
-  graphOverview: (kbId: string, limit?: number) =>
+  graphOverview: (kbId: string, limit?: number, asOf?: string) =>
     request<{
       nodes: GraphNode[];
       edges: GraphEdge[];
@@ -1541,23 +1541,23 @@ export const api = {
        *  那一批，把上限当成规模显示是这个接口从前最误导人的地方 */
       total_nodes?: number;
       total_edges?: number;
-    }>(`/api/v1/kbs/${kbId}/graph/overview${limit ? `?limit=${limit}` : ""}`),
+    }>(`/api/v1/kbs/${kbId}/graph/overview?limit=${limit??500}${asOf?`&as_of=${encodeURIComponent(asOf)}`:""}`),
   /** 邻域视图**没有总数**：它本来就只是一小片，说「共 325 个」没有意义。
    *  两个字段声明成可选，好让调用方与总览共用一个类型 */
-  graphNeighborhood: (kbId: string, entityId: string) =>
+  graphNeighborhood: (kbId: string, entityId: string, asOf?: string) =>
     request<{
       nodes: GraphNode[];
       edges: GraphEdge[];
       total_nodes?: number;
       total_edges?: number;
-    }>(`/api/v1/kbs/${kbId}/graph/neighborhood?entity=${entityId}&hops=2`),
+    }>(`/api/v1/kbs/${kbId}/graph/neighborhood?entity=${entityId}&hops=2${asOf?`&as_of=${encodeURIComponent(asOf)}`:""}`),
   /** 按名字找实体。**一并回总数**——「宁分勿合」会造出一堆同名，
    *  固定十条时想找的那个可能根本不在这十条里 */
   searchEntities: (kbId: string, q: string, limit = 10) =>
     request<{ entities: GraphNode[]; total: number }>(
       `/api/v1/kbs/${kbId}/entities?q=${encodeURIComponent(q)}&limit=${limit}`,
     ),
-  entityDetail: (kbId: string, entityId: string) =>
+  entityDetail: (kbId: string, entityId: string, asOf?: string) =>
     request<{
       entity: GraphNode;
       facts: EntityFact[];
@@ -1569,7 +1569,7 @@ export const api = {
       /** 同名的其他实体。**打开面板就给**——合并入口要长在能看见同名的地方，
        *  而不是藏在「改一次名」之后 */
       same_name: GraphNode[];
-    }>(`/api/v1/kbs/${kbId}/entities/${entityId}`),
+    }>(`/api/v1/kbs/${kbId}/entities/${entityId}${asOf?`?as_of=${encodeURIComponent(asOf)}`:""}`),
   /** 认知变更历史（记录时间轴）：服务端分页 */
   /** 人工修正实体的类型或名字。同名不拦——返回的 same_name 供界面提示是否合并。 */
   updateEntity: (

@@ -30,10 +30,8 @@ export function Wordmark({ className }: { className?: string }) {
   return (
     <a
       href={S.app.siteUrl}
-      target="_blank"
-      rel="noreferrer"
-      title="utopia.bi"
-      className={cn("relative inline-flex text-white", className)}
+      title="Arcadia"
+      className={cn("relative inline-flex text-ink", className)}
       style={{ fontFamily: "var(--font-brand)", letterSpacing: "0.06em" }}
     >
       {[...S.app.name].map((ch, i) => (
@@ -45,7 +43,7 @@ export function Wordmark({ className }: { className?: string }) {
           {ch}
         </span>
       ))}
-      <ArrowUpRight className="u-mark-arrow" aria-hidden />
+
     </a>
   );
 }
@@ -1020,7 +1018,7 @@ export function SectionMark({ text, title }: { text: string; title: string }) {
     <RouterLink
       to="/"
       title={title}
-      className="relative inline-flex text-white text-title"
+      className="relative inline-flex text-ink text-title"
       style={{ fontFamily: "var(--font-brand)", letterSpacing: "0.06em" }}
     >
       {[...text].map((ch, i) => (

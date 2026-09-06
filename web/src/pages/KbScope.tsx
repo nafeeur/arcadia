@@ -76,6 +76,7 @@ export function KbRedirect({
   page,
 }: {
   page:
+    | "overview"
     | "graph"
     | "search"
     | "chat"

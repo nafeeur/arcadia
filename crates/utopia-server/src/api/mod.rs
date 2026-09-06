@@ -1,5 +1,8 @@
 mod admin_routes;
 mod alerts_routes;
+mod arcadia_routes;
+#[cfg(test)]
+mod arcadia_workflow_tests;
 mod auth_routes;
 mod chat;
 mod datasource_routes;
@@ -12,6 +15,7 @@ mod kbs;
 mod mapping_routes;
 mod mcp;
 mod members_routes;
+mod oidc_routes;
 pub(crate) mod ontology_routes;
 mod review_routes;
 pub(crate) mod rule_routes;
@@ -288,6 +292,43 @@ pub fn router(state: AppState, cfg: &AppConfig) -> Router {
             "/kbs/{id}/ontology/adopt-predicate/{batch_id}",
             axum::routing::delete(ontology_routes::unadopt_predicate),
         )
+        .route("/kbs/{id}/arcadia/overview", get(arcadia_routes::overview))
+        .route("/kbs/{id}/arcadia/traces", get(arcadia_routes::traces))
+        .route(
+            "/kbs/{id}/arcadia/traces/{trace_id}",
+            get(arcadia_routes::trace),
+        )
+        .route(
+            "/kbs/{id}/arcadia/traces/{trace_id}/replay",
+            post(arcadia_routes::replay),
+        )
+        .route(
+            "/kbs/{id}/arcadia/impact/{document_id}",
+            get(arcadia_routes::impact),
+        )
+        .route(
+            "/kbs/{id}/arcadia/changes",
+            get(arcadia_routes::changes).post(arcadia_routes::propose),
+        )
+        .route(
+            "/kbs/{id}/arcadia/changes/{change_id}",
+            get(arcadia_routes::change),
+        )
+        .route(
+            "/kbs/{id}/arcadia/changes/{change_id}/decide",
+            post(arcadia_routes::decide),
+        )
+        .route("/auth/oidc/status", get(oidc_routes::status))
+        .route("/auth/oidc/start", get(oidc_routes::start))
+        .route("/auth/oidc/callback", get(oidc_routes::callback))
+        .route(
+            "/admin/oidc/identities",
+            get(oidc_routes::identities).post(oidc_routes::bind),
+        )
+        .route(
+            "/admin/oidc/identities/{user_id}",
+            axum::routing::delete(oidc_routes::unbind),
+        )
         .route("/kbs/{id}/search", post(search_routes::search))
         .route("/kbs/{id}/chat", post(chat::chat))
         // 刷新页面后重新接上正在生成的那个回答（见 `live`）
@@ -482,7 +523,7 @@ pub fn router(state: AppState, cfg: &AppConfig) -> Router {
 }
 
 async fn health() -> Json<serde_json::Value> {
-    Json(json!({ "status": "ok", "name": "utopia", "version": env!("CARGO_PKG_VERSION") }))
+    Json(json!({ "status": "ok", "name": "arcadia", "version": env!("CARGO_PKG_VERSION") }))
 }
 
 /// P0 队列验证端点：入队一个 noop 任务（后续里程碑移除）。

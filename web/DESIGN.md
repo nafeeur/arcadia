@@ -1,43 +1,21 @@
-# The interface, in five rules
+# Arcadia interface
 
-Utopia's chrome is neutral dark glass: Geist for text, Marcellus for the wordmark, no hue in the chrome, colour reserved for data and for three semantic states. That language is written down in `web/src/styles.css` and has been since the first screen. What was missing was enforcement — a page could pick any of twelve pixel sizes, any of fourteen paddings, any grey. These rules close that gap. They are checked by `pnpm guard` in CI; a page that breaks them does not merge.
+Arcadia replaces Utopia's dark glass presentation with a quiet editorial workspace. This is an intentional product redesign; the original feature architecture remains.
 
-## 1. Five type sizes, by name
+## Visual language
 
-| name | size / line | for |
-|---|---|---|
-| `text-fine` | 11 / 16 | metadata, chip text, table headers, hints under a control |
-| `text-small` | 12 / 18 | secondary text, dense rows, captions |
-| `text-body` | 13 / 20 | everything else: prose, controls, menus |
-| `text-title` | 15 / 22 | section and dialog titles |
-| `text-display` | 20 / 28 | the page title, and only that |
+- Evergreen navigation rail (`#182d28`), ivory canvas, warm paper panels, muted green controls and restrained gold identity marks.
+- Marcellus for the brand and major page headings; the existing sans-serif stack for dense knowledge work.
+- Flat panels with fine borders and small radii. Avoid decorative glow, heavy gradients and large floating shadows.
+- Persistent grouped navigation: the overview, changes, answer ledger and historical evidence form the daily workflow; existing knowledge and governance tools remain reachable.
+- Real counts and explicit empty states. Never populate a new workspace with fabricated people, documents, activity or measurements.
 
-No `text-xs`/`text-sm`, no `text-[11px]`. If a size between two steps seems necessary, the step is wrong for the element, not the scale for the size. Weight is `font-medium` for controls and titles, `font-semibold` only on the primary button; `font-bold` is not used in chrome. Numbers in chrome are Geist with `u-num` (tabular figures), never monospace; `font-mono` is for keys, ids, code and URLs.
+## Components and behavior
 
-## 2. Six spacing steps
+Shared tokens live in `src/styles.css`; Arcadia layout and page components live in `src/arcadia.css`. Use the existing `src/ui` primitives for inputs, buttons, menus and dialogs. Keep text in both `src/i18n/en.ts` and `zh.ts`.
 
-`1 2 3 4 6 8` (4, 8, 12, 16, 24, 32 px), for padding, margin and gap alike. No half steps, no pixels. Values of `12` and above are layout, not rhythm — clearance under a floating bar, a footer's breathing room — and are allowed for that. Controls carry their own padding — a page never sets padding on a button or an input. Page gutters are `6` or `8`; the gap between two related controls is `2`; between two groups, `4`; between two sections, `6`.
+Review pages use an inbox and inspector, with the retained original beside the proposal. Small screens stack these regions and allow horizontal navigation scrolling. The knowledge-base switch remains available. Keyboard focus is visible; reduced-motion preferences disable decorative motion.
 
-## 3. Two radii
+Historical record time is labeled UTC and separate from the graph's world-time controls. Answer reruns clearly state their document-only scope. Citation structure must never be labeled factual verification. Private answer dependencies belong only to the current user.
 
-`rounded-lg` (8 px) on anything you press or type into; `rounded-xl` (12 px) on any surface — panel, popover, dialog, card; `rounded-full` on pills and round buttons. Nothing else.
-
-## 4. Colour is a token, never a value
-
-Text is `text-ink`, `text-ink-2`, `text-ink-3` — three levels, primary to faint. Lines are `border-line` and `border-line-strong`. Fills are `bg-surface` (rest), `bg-surface-2` (hover), `bg-surface-3` (selected). Meaning is `ok`, `warn`, `danger`, `contest`, `violet`, and those five appear only where they mean something — a status, a contested edge, a destructive action — never as decoration. `neutral-500`, `white/10`, `rose-400`, `[var(--u-…)]` do not appear in a page; the tokens are defined once in `styles.css` and exposed as Tailwind colours, and that is the only door.
-
-Glass is a surface treatment, not a colour: `glass` for a panel in peripheral vision, `glass-strong` for one being read, and both go solid under the pointer (see the note above `--u-surface-strong-hover`). A page does not write `backdrop-blur`.
-
-## 5. State lives in the component
-
-Hover, focus, active, disabled and motion are defined once, in `web/src/ui/`, and a page never writes `hover:`, `focus:`, `transition` or `duration-`. Every control shows a visible focus ring for keyboard users (`--u-ring`); every disabled control is `opacity-40` with `cursor-not-allowed`; every hover settles in `--u-fast` (120 ms) and leaves in `--u-base` (260 ms). A page that needs a control that does not exist adds it to `ui/`, with all five states, and then uses it.
-
-Concretely, a page renders no raw `<button>`, `<input>`, `<textarea>` or `<select>`; it renders `Button`, `IconButton`, `Input`, `Textarea`, `NativeSelect`, `Dropdown`, `SearchSelect`. Confirmation is `DangerConfirm` or `Dialog`, never `window.confirm`. A hint on hover is `Tooltip`, not a bare `title=` on a span (a `title` on a button that already has a visible label is fine).
-
-## How this is enforced
-
-`web/scripts/style-guard.mjs` scans `web/src/**/*.tsx` for the patterns above and fails CI on any hit. It runs first in `pnpm build`. While the pages were being migrated, `web/style-guard.baseline.json` listed the ones not yet done; every page passes now and the file is gone. A new file is checked from its first commit.
-
-## Migration order
-
-By weight of `className` sites: Ontology, Graph, Library, Review, Settings; then the rest. A migration PR changes classes and swaps raw controls for components, and touches no logic — that is what makes it reviewable by diff alone.
+The source compiles and passes the style guard. Browser visual/accessibility testing has not been performed in this build session.

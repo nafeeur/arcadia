@@ -188,3 +188,22 @@ pub async fn actions_for_kb(pool: &PgPool, kb_id: Uuid) -> AppResult<Vec<String>
             .await?,
     )
 }
+
+/// Record an event atomically with a reviewed mutation, retaining request provenance.
+pub async fn record_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    kb_id: Option<Uuid>,
+    actor_id: Uuid,
+    action: &str,
+    target_kind: &str,
+    target_id: Option<Uuid>,
+    detail: serde_json::Value,
+) -> AppResult<()> {
+    let ctx = client_context();
+    sqlx::query("INSERT INTO audit_events(id,kb_id,actor_id,action,target_kind,target_id,detail,client_ip,user_agent,actor_label)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,(SELECT email FROM users WHERE id=$3))")
+        .bind(Uuid::now_v7()).bind(kb_id).bind(actor_id).bind(action).bind(target_kind)
+        .bind(target_id).bind(detail).bind(ctx.ip).bind(ctx.user_agent)
+        .execute(&mut **tx).await?;
+    Ok(())
+}

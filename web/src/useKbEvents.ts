@@ -31,10 +31,10 @@ export function useKbEvents(kbId: string | undefined) {
     };
 
     const es = new EventSource(`/api/v1/kbs/${kbId}/events`);
-    es.addEventListener("document", () => invalidate(["documents", kbId], ["graph"]));
-    es.addEventListener("graph", () => invalidate(["graph"]));
+    es.addEventListener("document", () => invalidate(["documents", kbId], ["graph"], ["arc-summary", kbId], ["arc-changes", kbId], ["arc-change", kbId], ["arc-impact", kbId], ["arc-traces", kbId], ["arc-trace", kbId]));
+    es.addEventListener("graph", () => invalidate(["graph"], ["arc-summary", kbId], ["arc-impact", kbId]));
     // 映射探索跑完发的也是 review：Pending 那一栏得跟着刷新
-    es.addEventListener("review", () => invalidate(["review", kbId], ["mappings", kbId]));
+    es.addEventListener("review", () => invalidate(["review", kbId], ["mappings", kbId], ["arc-changes", kbId], ["arc-change", kbId], ["arc-summary", kbId]));
     // 一句记忆抽出了等人点头的事实（0015）：对话里那张确认卡跟着长出来
     es.addEventListener("pending", () => invalidate(["pending", kbId], ["review", kbId]));
     es.addEventListener("source", () => invalidate(["sources", kbId], ["documents", kbId]));

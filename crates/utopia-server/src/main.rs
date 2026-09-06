@@ -244,7 +244,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app = api::router(state, &cfg);
     let listener = tokio::net::TcpListener::bind(&cfg.bind_addr).await?;
-    tracing::info!("Utopia 服务启动于 http://{}", cfg.bind_addr);
+    tracing::info!("Arcadia 服务启动于 http://{}", cfg.bind_addr);
 
     // 浏览器可能把 localhost 解析为 ::1（IPv6）——配置为 IPv4 地址时补一个同端口的
     // IPv6 回环监听，避免「找不到 localhost」。绑定失败（端口被占/无 IPv6）仅告警。

@@ -375,6 +375,8 @@ export function Graph() {
 
   /* 画多少个。**进 queryKey**——不进的话调了档位不会重新取数，
      界面看着变了实际还是老数据 */
+  const [recordTime, setRecordTime] = useState("");
+  const [recordDraft, setRecordDraft] = useState("");
   const [nodeBudget, setNodeBudget] = useState<number>(NODE_BUDGETS[0]);
 
   // 空状态给谁看：管理员能自己去配模型，其他人只能去找管理员。与 Shell 共用同一份缓存
@@ -387,11 +389,11 @@ export function Graph() {
     canUpload: kb?.my_role !== "viewer",
   });
   const data = useQuery({
-    queryKey: ["graph", kb?.id, focusEntity, nodeBudget],
+    queryKey: ["graph", kb?.id, focusEntity, nodeBudget, recordTime],
     queryFn: () =>
       focusEntity
-        ? api.graphNeighborhood(kb!.id, focusEntity)
-        : api.graphOverview(kb!.id, nodeBudget),
+        ? api.graphNeighborhood(kb!.id, focusEntity, recordTime || undefined)
+        : api.graphOverview(kb!.id, nodeBudget, recordTime || undefined),
     enabled: !!kb,
   });
 
@@ -1250,7 +1252,12 @@ export function Graph() {
   const capped = totalNodes > nodeCount;
 
   return (
-    <div className="h-full relative">
+    <div className="h-full relative arc-graph">
+      <form className="arc-graph-record" onSubmit={e=>{e.preventDefault();setRecordTime(recordDraft ? new Date(recordDraft+"Z").toISOString() : "");}}>
+        <label>{S.arcadia.asOf}<Input type="datetime-local" step="1" value={recordDraft} onChange={e=>setRecordDraft(e.target.value)}/></label>
+        <Button type="submit" size="sm">{S.arcadia.search}</Button>
+        {recordTime&&<Button size="sm" onClick={()=>{setRecordTime("");setRecordDraft("");}}>{S.arcadia.now}</Button>}
+      </form>
       {/* 顶部悬浮条：搜索 + 图例 + 状态 */}
       <div className="absolute top-3 left-3 right-3 z-10 flex items-start gap-2 pointer-events-none">
         <div className="relative pointer-events-auto">
@@ -1717,6 +1724,7 @@ export function Graph() {
         <EntityPanel
           kbId={kb.id}
           entityId={(selected ?? exiting)!}
+          asOf={recordTime || undefined}
           exiting={!selected}
           intent={panelIntentRef}
           onClose={deselect}
@@ -2575,6 +2583,7 @@ function ContestedChip({
 }
 
 function EntityPanel({
+  asOf,
   kbId,
   entityId,
   exiting,
@@ -2584,6 +2593,7 @@ function EntityPanel({
 }: {
   kbId: string;
   entityId: string;
+  asOf?: string;
   /** 正在演退场：还挂在 DOM 上，但已经不接受点击 */
   exiting: boolean;
   /** 打开时停在哪一档、展开哪一行；读一次就清掉 */
@@ -2592,8 +2602,8 @@ function EntityPanel({
   onNavigate: (entityId: string) => void;
 }) {
   const detail = useQuery({
-    queryKey: ["entity", kbId, entityId],
-    queryFn: () => api.entityDetail(kbId, entityId),
+    queryKey: ["entity", kbId, entityId, asOf],
+    queryFn: () => api.entityDetail(kbId, entityId, asOf),
   });
   const [openFact, setOpenFact] = useState<string | null>(null);
   // 推出来的那些。**单独一个键，不掺进 facts**——混在一个列表里，用户看不出

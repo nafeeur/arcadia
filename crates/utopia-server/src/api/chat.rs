@@ -640,15 +640,17 @@ pub async fn chat(
                                 Err(e) => { yield error_event(&e.to_string()); return; }
                             }
                         }
-                        let _ = utopia_store::conversations::append_message(
+                        let saved = utopia_store::conversations::append_message(
                             &state.pool, conversation_id, "assistant", &answer_acc,
                             &utopia_store::conversations::TurnRecord {
+                                metadata: json!({"model": settings.chat_model, "embedding_model": settings.embed_model, "capture": "answer_and_tool_evidence", "question": query, "rounds": rounds}),
                                 steps: serde_json::Value::Array(steps_acc.clone()),
                                 sources: serde_json::Value::Array(sink.sources.clone()),
                                 resolved: serde_json::Value::Array(sink.resolved.clone()),
                                 tool_exchange: serde_json::Value::Array(exchange_acc.clone()),
                             },
                         ).await;
+                        if let Err(e) = saved { yield error_event(&format!("Answer could not be saved: {e}")); return; }
                         yield done_event();
                     }
                     Err(e) => yield error_event(&e.to_string()),
@@ -690,16 +692,18 @@ pub async fn chat(
                                         Err(e2) => { yield error_event(&e2.to_string()); return; }
                                     }
                                 }
-                                let _ = utopia_store::conversations::append_message(
+                                let saved = utopia_store::conversations::append_message(
                                     &state.pool, conversation_id, "assistant", &answer_acc,
                                     &utopia_store::conversations::TurnRecord {
+                                metadata: json!({"model": settings.chat_model, "embedding_model": settings.embed_model, "capture": "answer_and_tool_evidence", "question": query, "rounds": rounds}),
                                         steps: serde_json::Value::Array(steps_acc.clone()),
                                         sources: serde_json::Value::Array(legacy_sources.clone()),
                                         resolved: serde_json::Value::Array(sink.resolved.clone()),
                                         tool_exchange: serde_json::Value::Array(exchange_acc.clone()),
                                     },
                                 ).await;
-                                yield done_event();
+                                if let Err(e) = saved { yield error_event(&format!("Answer could not be saved: {e}")); return; }
+                        yield done_event();
                             }
                             Err(e2) => yield error_event(&e2.to_string()),
                         }
@@ -735,16 +739,18 @@ pub async fn chat(
                 if answer_acc.is_empty() {
                     yield error_event("Model returned an empty answer");
                 } else {
-                    let _ = utopia_store::conversations::append_message(
+                    let saved = utopia_store::conversations::append_message(
                         &state.pool, conversation_id, "assistant", &answer_acc,
                         &utopia_store::conversations::TurnRecord {
+                                metadata: json!({"model": settings.chat_model, "embedding_model": settings.embed_model, "capture": "answer_and_tool_evidence", "question": query, "rounds": rounds}),
                             steps: serde_json::Value::Array(steps_acc.clone()),
                             sources: serde_json::Value::Array(sink.sources.clone()),
                             resolved: serde_json::Value::Array(sink.resolved.clone()),
                             tool_exchange: serde_json::Value::Array(exchange_acc.clone()),
                         },
                     ).await;
-                    yield done_event();
+                    if let Err(e) = saved { yield error_event(&format!("Answer could not be saved: {e}")); return; }
+                        yield done_event();
                 }
                 return;
             }
@@ -910,6 +916,7 @@ fn source_json(n: usize, c: &ChunkView) -> serde_json::Value {
         "document_id": c.document_id,
         "filename": c.filename,
         "excerpt": truncate(&c.text, 160),
+        "text": c.text,
     })
 }
 

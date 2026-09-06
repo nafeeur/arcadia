@@ -1,5 +1,13 @@
+import { ArcadiaIdentity } from "./pages/ArcadiaIdentity";
+import {
+  ArcadiaHome,
+  ArcadiaChanges,
+  ArcadiaTraces,
+  ArcadiaHistory,
+} from "./pages/Arcadia";
 import {
   createRootRoute,
+  lazyRouteComponent,
   createRoute,
   createRouter,
   redirect,
@@ -7,22 +15,16 @@ import {
 import { Account } from "./pages/Account";
 import { AccountShell } from "./pages/AccountShell";
 import { Tokens } from "./pages/Tokens";
-import { Chat } from "./pages/Chat";
 import { DocViewer } from "./pages/DocViewer";
 import { DocsPage } from "./pages/Docs";
-import { Graph } from "./pages/Graph";
-import { Library } from "./pages/Library";
 import { Login } from "./pages/Login";
 import { Privacy, Terms } from "./pages/Legal";
 import { KbRedirect, KbScope } from "./pages/KbScope";
 import { KbSettings } from "./pages/KbSettings";
 import { MyKbs } from "./pages/MyKbs";
 import { NotFound } from "./pages/ServerDown";
-import { Ontology } from "./pages/Ontology";
-import { Mappings } from "./pages/Mappings";
 import { Review } from "./pages/Review";
 import { Search } from "./pages/Search";
-import { Settings } from "./pages/Settings";
 import { Shell } from "./pages/Shell";
 
 const rootRoute = createRootRoute();
@@ -57,7 +59,7 @@ const indexRoute = createRoute({
   path: "/",
   beforeLoad: () => {
     // 首页 = 图谱：产品的差异化门面
-    throw redirect({ to: "/graph" });
+    throw redirect({ to: "/overview" });
   },
 });
 
@@ -70,10 +72,44 @@ const kbRoute = createRoute({
   component: KbScope,
 });
 
+const overviewRoute = createRoute({
+  getParentRoute: () => kbRoute,
+  path: "overview",
+  component: ArcadiaHome,
+});
+const changesRoute = createRoute({
+  getParentRoute: () => kbRoute,
+  path: "changes",
+  component: ArcadiaChanges,
+  validateSearch: (s: Record<string, unknown>): { item?: string } => ({
+    item: typeof s.item === "string" ? s.item : undefined,
+  }),
+});
+const tracesRoute = createRoute({
+  getParentRoute: () => kbRoute,
+  path: "traces",
+  component: ArcadiaTraces,
+  validateSearch: (
+    s: Record<string, unknown>,
+  ): { item?: string; change?: string } => ({
+    item: typeof s.item === "string" ? s.item : undefined,
+    change: typeof s.change === "string" ? s.change : undefined,
+  }),
+});
+const historyRoute = createRoute({
+  getParentRoute: () => kbRoute,
+  path: "history",
+  component: ArcadiaHistory,
+});
+const legacyOverviewRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/overview",
+  component: () => <KbRedirect page="overview" />,
+});
 const chatRoute = createRoute({
   getParentRoute: () => kbRoute,
   path: "chat",
-  component: Chat,
+  component: lazyRouteComponent(() => import("./pages/Chat"), "Chat"),
 });
 
 // 会话即路由：/chat/$conversationId 只承载 URL（刷新/分享回到同一会话），
@@ -112,7 +148,7 @@ const graphRoute = createRoute({
     focus: typeof search.focus === "string" ? search.focus : undefined,
     at: typeof search.at === "string" ? search.at : undefined,
   }),
-  component: Graph,
+  component: lazyRouteComponent(() => import("./pages/Graph"), "Graph"),
 });
 
 const docRoute = createRoute({
@@ -130,19 +166,19 @@ const libraryRoute = createRoute({
   validateSearch: (search: Record<string, unknown>): { src?: string } => ({
     src: typeof search.src === "string" ? search.src : undefined,
   }),
-  component: Library,
+  component: lazyRouteComponent(() => import("./pages/Library"), "Library"),
 });
 
 const ontologyRoute = createRoute({
   getParentRoute: () => kbRoute,
   path: "ontology",
-  component: Ontology,
+  component: lazyRouteComponent(() => import("./pages/Ontology"), "Ontology"),
 });
 
 const mappingsRoute = createRoute({
   getParentRoute: () => kbRoute,
   path: "mappings",
-  component: Mappings,
+  component: lazyRouteComponent(() => import("./pages/Mappings"), "Mappings"),
 });
 
 const reviewRoute = createRoute({
@@ -180,6 +216,12 @@ const accountShellRoute = createRoute({
   component: AccountShell,
 });
 
+const oidcRoute = createRoute({
+  getParentRoute: () => accountShellRoute,
+  path: "/identity",
+  component: ArcadiaIdentity,
+});
+
 const accountRoute = createRoute({
   getParentRoute: () => accountShellRoute,
   path: "/account",
@@ -215,7 +257,7 @@ const adminRoute = createRoute({
         ? search.tab
         : undefined,
   }),
-  component: Settings,
+  component: lazyRouteComponent(() => import("./pages/Settings"), "Settings"),
 });
 
 // 旧路径兼容：/settings → /admin
@@ -286,9 +328,16 @@ const routeTree = rootRoute.addChildren([
   settingsRoute,
   docsIndexRoute,
   docsRoute,
-  accountShellRoute.addChildren([accountRoute, myKbsRoute, tokensRoute, adminRoute]),
+  accountShellRoute.addChildren([
+    accountRoute,
+    myKbsRoute,
+    tokensRoute,
+    adminRoute,
+    oidcRoute,
+  ]),
   appRoute.addChildren([
     indexRoute,
+    legacyOverviewRoute,
     legacyGraphRoute,
     legacySearchRoute,
     legacyChatRoute,
@@ -299,6 +348,10 @@ const routeTree = rootRoute.addChildren([
     legacyKbSettingsRoute,
     kbRoute.addChildren([
       chatRoute.addChildren([chatConversationRoute]),
+      overviewRoute,
+      changesRoute,
+      tracesRoute,
+      historyRoute,
       searchRoute,
       graphRoute,
       docRoute,

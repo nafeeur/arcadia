@@ -1,12 +1,3 @@
-//! 混合检索：BM25（Tantivy）+ 向量（pgvector）→ RRF 融合。
-//! embedding 未配置或请求失败时静默降级为纯 BM25。
-//!
-//! **`as_of` 只在向量与取块这两处是完整的**（0019 开放问题②）。Tantivy 的索引
-//! 只有"现在"一个版本：重解析会把文档的块整批换掉，旧版本不在索引里。所以
-//! 带时刻检索时，BM25 找回来的东西**是对的**（随后按当时的活性过滤），但它
-//! 找不回当时有、如今已被顶掉的那些块——召回缺一角，命中不会出错。
-//! 要补那一角得给全文索引也建版本，那是另一件事，不在这一刀里。
-
 use crate::llm_util;
 use crate::state::AppState;
 use utopia_core::models::ChunkView;
@@ -25,12 +16,36 @@ pub async fn hybrid(
 ) -> AppResult<Vec<ChunkView>> {
     let mut lists: Vec<Vec<String>> = Vec::new();
 
-    // BM25
-    let bm25 = state
-        .search
-        .search(&kb_id.to_string(), query, RECALL_PER_CHANNEL)
-        .map_err(utopia_core::AppError::Other)?;
-    lists.push(bm25.into_iter().map(|h| h.chunk_id).collect());
+    // Tantivy only has current versions. A historical query must recall from the
+    // retained ledger, not filter a current-only candidate set after ranking.
+    let lexical = if as_of.is_some() {
+        utopia_store::documents::lexical_search(
+            &state.pool,
+            kb_id,
+            query,
+            RECALL_PER_CHANNEL as i64,
+            as_of,
+        )
+        .await?
+        .into_iter()
+        .map(|id| id.to_string())
+        .collect()
+    } else {
+        let hits = state
+            .search
+            .search(&kb_id.to_string(), query, RECALL_PER_CHANNEL * 4)
+            .map_err(utopia_core::AppError::Other)?;
+        let ids: Vec<Uuid> = hits
+            .iter()
+            .filter_map(|h| h.chunk_id.parse().ok())
+            .collect();
+        utopia_store::documents::chunks_by_ids(&state.pool, kb_id, &ids, None)
+            .await?
+            .into_iter()
+            .map(|c| c.id.to_string())
+            .collect()
+    };
+    lists.push(lexical);
 
     // 向量（可选通道）
     let settings = utopia_store::settings::get(&state.pool, workspace_id).await?;

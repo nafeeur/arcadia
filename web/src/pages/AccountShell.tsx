@@ -78,6 +78,7 @@ export function AccountShell() {
             <KeyRound size={14} />
             {S.account.tokensNav}
           </Link>
+          {me.data.is_admin && <Link to="/identity" className={rail} activeProps={{className:railActive}}><ShieldCheck size={14}/>{S.arcadia.sso}</Link>}
           {me.data.is_admin && (
             <Link to="/admin" className={rail} activeProps={{ className: railActive }}>
               <ShieldCheck size={14} />
