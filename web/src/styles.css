@@ -191,6 +191,25 @@ body::before {
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid var(--u-line-strong);
+  /* 面板本身是深底，但 --u-text* 与它们的 --color-ink* 别名一直是浅色主题的
+     默认值（这些变量只在 :root 定义过一次，其 var() 替换在声明处就已解析并
+     被继承——见 .arc-sidebar 上的同一条说明）。以前只有 DangerConfirm 那种
+     几乎不带控件的确认框用它，暗灰色的说明文字凑合能读；这个类现在也包着
+     真正的表单（New source 的 Type/Name），.input-dark 的字色、次级按钮的
+     字色全部继承了浅色墨——在这块近黑的面上等于看不见。
+     --u-surface* 也要跟着翻，否则 .u-btn-secondary:hover 会变成白底白字 */
+  --u-text: #f2f2f0;
+  --u-text-2: #a8aca6;
+  --u-text-3: #7d817b;
+  --u-surface: #1a1a1a;
+  --u-surface-2: #262626;
+  --u-surface-3: #333333;
+  --color-ink: var(--u-text);
+  --color-ink-2: var(--u-text-2);
+  --color-ink-3: var(--u-text-3);
+  --color-surface: var(--u-surface);
+  --color-surface-2: var(--u-surface-2);
+  --color-surface-3: var(--u-surface-3);
 }
 
 /* 确认框入场：遮罩淡入 + 面板浮起。
