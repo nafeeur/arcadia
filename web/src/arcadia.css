@@ -20,7 +20,12 @@
   display: flex;
   flex-direction: column;
   padding: 28px 18px 16px;
-  overflow-y: auto;
+  /* Not overflow-y: auto here — a scrollable axis forces the other axis's
+     'visible' to compute as 'auto' too (CSS overflow spec), so anything
+     wider than the sidebar (the KB switcher's popover, min-w-64 against a
+     232px rail) gets clipped/scrolled instead of floating over the page.
+     The scroll lives on <nav> below instead, where only nav items can ever
+     overflow vertically. */
   --u-text: var(--arc-rail-ink);
   --u-text-2: #c0cbc2;
   --u-text-3: #a0b5a8;
@@ -84,6 +89,14 @@
 .arc-kb-switch button {
   width: 100%;
   justify-content: flex-start;
+}
+/* The scrollable axis lives here, not on .arc-sidebar — see the note there.
+   min-height: 0 is required for a flex child to shrink below its content
+   size and actually scroll instead of pushing the footer off the bottom. */
+.arc-sidebar > nav {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 .arc-nav-group {
   font-size: 9px;
